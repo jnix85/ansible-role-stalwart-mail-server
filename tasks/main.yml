@@ -1,0 +1,30 @@
+---
+- name: Load OS family specific variables
+  ansible.builtin.include_vars: "{{ ansible_os_family }}.yml"
+  tags: [stalwart, always]
+
+- name: Validate role configuration
+  ansible.builtin.import_tasks: preflight.yml
+  tags: [stalwart, stalwart_preflight]
+
+- name: Install Stalwart
+  ansible.builtin.import_tasks: install.yml
+  tags: [stalwart, stalwart_install]
+
+- name: Generate self-signed certificate
+  ansible.builtin.import_tasks: tls_selfsigned.yml
+  when: stalwart_tls_mode == 'selfsigned'
+  tags: [stalwart, stalwart_tls]
+
+- name: Configure Stalwart
+  ansible.builtin.import_tasks: configure.yml
+  tags: [stalwart, stalwart_configure]
+
+- name: Manage systemd service
+  ansible.builtin.import_tasks: service.yml
+  tags: [stalwart, stalwart_service]
+
+- name: Manage firewall rules
+  ansible.builtin.import_tasks: firewall.yml
+  when: stalwart_manage_firewall | bool
+  tags: [stalwart, stalwart_firewall]

@@ -1,0 +1,65 @@
+---
+- name: Assert supported platform
+  ansible.builtin.assert:
+    that:
+      - ansible_os_family in ['Debian', 'RedHat']
+      - ansible_service_mgr == 'systemd'
+      - ansible_architecture in stalwart_arch_map
+    fail_msg: >-
+      This role supports systemd-based Debian/RedHat family hosts on
+      {{ stalwart_arch_map.keys() | join('/') }} only
+      (got {{ ansible_os_family }}/{{ ansible_service_mgr }}/{{ ansible_architecture }}).
+
+- name: Assert admin password is provided
+  ansible.builtin.assert:
+    that:
+      - stalwart_admin_password is defined
+      - stalwart_admin_password | length >= 12
+    fail_msg: >-
+      stalwart_admin_password must be set (>= 12 characters).
+      Supply it via Ansible Vault; it is stored on the host only as a hash.
+    quiet: true
+
+- name: Assert TLS configuration is valid
+  ansible.builtin.assert:
+    that:
+      - stalwart_tls_mode in ['acme', 'files', 'selfsigned']
+    fail_msg: "stalwart_tls_mode must be one of: acme, files, selfsigned."
+
+- name: Assert ACME settings
+  ansible.builtin.assert:
+    that:
+      - stalwart_acme_domains | length > 0
+      - stalwart_acme_contact | length > 0
+      - stalwart_acme_challenge in ['tls-alpn-01', 'http-01', 'dns-01']
+      - not (stalwart_acme_challenge == 'tls-alpn-01' and not stalwart_https_enabled)
+    fail_msg: >-
+      ACME mode needs stalwart_acme_domains, stalwart_acme_contact and a valid
+      challenge type; tls-alpn-01 additionally requires the HTTPS listener
+      (stalwart_https_enabled) on port 443.
+  when: stalwart_tls_mode == 'acme'
+
+- name: Assert certificate file settings
+  ansible.builtin.assert:
+    that:
+      - stalwart_tls_cert_file | length > 0
+      - stalwart_tls_key_file | length > 0
+    fail_msg: >-
+      TLS mode "files" requires stalwart_tls_cert_file and stalwart_tls_key_file.
+  when: stalwart_tls_mode == 'files'
+
+- name: Assert storage configuration is valid
+  ansible.builtin.assert:
+    that:
+      - stalwart_storage_backend in ['rocksdb', 'sqlite', 'postgresql']
+    fail_msg: "stalwart_storage_backend must be one of: rocksdb, sqlite, postgresql."
+
+- name: Assert PostgreSQL settings
+  ansible.builtin.assert:
+    that:
+      - stalwart_postgresql_password | length > 0
+    fail_msg: >-
+      Storage backend "postgresql" requires stalwart_postgresql_password
+      (the role does not install or manage the PostgreSQL server itself).
+    quiet: true
+  when: stalwart_storage_backend == 'postgresql'

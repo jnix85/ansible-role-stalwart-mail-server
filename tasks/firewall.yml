@@ -1,0 +1,43 @@
+---
+- name: Compute enabled listener ports
+  ansible.builtin.set_fact:
+    stalwart_open_ports: >-
+      {{ (stalwart_smtp_enabled | ternary([stalwart_smtp_port], []))
+       + (stalwart_submission_enabled | ternary([stalwart_submission_port], []))
+       + (stalwart_submissions_enabled | ternary([stalwart_submissions_port], []))
+       + (stalwart_imap_enabled | ternary([stalwart_imap_port], []))
+       + (stalwart_imaps_enabled | ternary([stalwart_imaps_port], []))
+       + (stalwart_pop3_enabled | ternary([stalwart_pop3_port, stalwart_pop3s_port], []))
+       + (stalwart_managesieve_enabled | ternary([stalwart_managesieve_port], []))
+       + (stalwart_https_enabled | ternary([stalwart_https_port], []))
+       + (stalwart_http_enabled | ternary([stalwart_http_port], [])) }}
+
+- name: Install firewall packages
+  ansible.builtin.package:
+    name: "{{ stalwart_firewall_packages }}"
+    state: present
+
+- name: Allow Stalwart ports (ufw)
+  community.general.ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+    comment: "Stalwart mail server"
+  loop: "{{ stalwart_open_ports }}"
+  when: ansible_os_family == 'Debian'
+
+- name: Ensure firewalld is running
+  ansible.builtin.systemd_service:
+    name: firewalld
+    state: started
+    enabled: true
+  when: ansible_os_family == 'RedHat'
+
+- name: Allow Stalwart ports (firewalld)
+  ansible.posix.firewalld:
+    port: "{{ item }}/tcp"
+    permanent: true
+    immediate: true
+    state: enabled
+  loop: "{{ stalwart_open_ports }}"
+  when: ansible_os_family == 'RedHat'

@@ -1,0 +1,8 @@
+---
+collections:
+  # ufw module (Debian family firewall management)
+  - name: community.general
+  # firewalld module (RedHat family firewall management)
+  - name: ansible.posix
+  # Molecule docker driver
+  - name: community.docker
