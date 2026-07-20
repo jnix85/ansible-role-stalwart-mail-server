@@ -3,7 +3,6 @@ profile: production
 
 exclude_paths:
   - .cache/
-  - .github/
 
 # The role is distributed as jnix85.stalwart_mail_server; the repository
 # directory name differs, which offline role-name checks can't know.

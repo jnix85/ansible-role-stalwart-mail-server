@@ -1,7 +1,5 @@
 # Ansible Role: Stalwart Mail Server
 
-[![CI](https://github.com/jnix85/ansible-role-stalwart-mail-server/actions/workflows/ci.yml/badge.svg)](https://github.com/jnix85/ansible-role-stalwart-mail-server/actions/workflows/ci.yml)
-
 Installs and configures [Stalwart](https://stalw.art) — an all-in-one mail &
 collaboration server (SMTP, IMAP, JMAP, POP3, CalDAV/CardDAV) — from the
 official release binaries, running under systemd as a dedicated unprivileged
@@ -162,8 +160,7 @@ MOLECULE_DISTRO=rockylinux9 molecule test
 ```
 
 Note: Molecule resolves the role by its Galaxy name, so clone this repository
-into a directory named `jnix85.stalwart_mail_server` (CI does this
-automatically).
+into a directory named `jnix85.stalwart_mail_server`.
 
 ## License
 
