@@ -1,5 +1,7 @@
 # Ansible Role: Stalwart Mail Server
 
+[![CircleCI](https://dl.circleci.com/status-badge/img/gh/jnix85/ansible-role-stalwart-mail-server/tree/main.svg?style=svg)](https://dl.circleci.com/status-badge/redirect/gh/jnix85/ansible-role-stalwart-mail-server/tree/main)
+
 Installs and configures [Stalwart](https://stalw.art) — an all-in-one mail &
 collaboration server (SMTP, IMAP, JMAP, POP3, CalDAV/CardDAV) — from the
 official release binaries, running under systemd as a dedicated unprivileged
@@ -160,7 +162,12 @@ MOLECULE_DISTRO=rockylinux9 molecule test
 ```
 
 Note: Molecule resolves the role by its Galaxy name, so clone this repository
-into a directory named `jnix85.stalwart_mail_server`.
+into a directory named `jnix85.stalwart_mail_server` (CircleCI does this
+automatically).
+
+CI runs on [CircleCI](https://circleci.com): a lint job (yamllint +
+ansible-lint) gates a Molecule matrix across Debian 12, Rocky Linux 9 and
+Ubuntu 24.04.
 
 ## License
 
