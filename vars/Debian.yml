@@ -5,3 +5,5 @@ stalwart_firewall_packages:
 stalwart_prereq_packages:
   - ca-certificates
   - openssl
+  - tar
+  - gzip
