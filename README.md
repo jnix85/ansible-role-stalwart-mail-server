@@ -35,6 +35,16 @@ user.
 
 ## Quick start
 
+Install the role straight from this repository:
+
+```sh
+ansible-galaxy role install \
+  git+https://github.com/jnix85/ansible-role-stalwart-mail-server.git,main,jnix85.stalwart_mail_server
+```
+
+Ready-to-run playbook and inventory templates live in
+[`examples/`](examples/). Minimal playbook:
+
 ```yaml
 - hosts: mailservers
   become: true
@@ -64,7 +74,8 @@ Defaults live in [`defaults/main.yml`](defaults/main.yml). The important ones:
 | Variable | Default | Description |
 | --- | --- | --- |
 | `stalwart_version` | `"0.16.9"` | Release to install (tag without `v`). Changing it upgrades in place. |
-| `stalwart_download_url` | GitHub release URL | Override for mirrors or if upstream asset naming changes. |
+| `stalwart_download_urls` | GitHub release URLs | Candidate URLs probed in order; covers both old (`stalwart-mail-*`) and new (`stalwart-*`) asset naming. |
+| `stalwart_download_url` | `""` | Explicit override (internal mirror); skips the candidate probing. |
 | `stalwart_download_checksum` | `""` | Optional, e.g. `sha256:abc...`. |
 | `stalwart_libc` | `gnu` | `gnu` or `musl` release flavour. |
 | `stalwart_install_dir` | `/opt/stalwart` | Install prefix (`bin/`, `etc/`, `data/`, `logs/`). |
@@ -120,8 +131,11 @@ after allowing SSH.
 
 ### Everything else
 
-`stalwart_extra_config` accepts raw TOML appended verbatim to `config.toml`
-for any local setting the role doesn't model.
+- `stalwart_smoke_test` (default `true`): after deployment the role verifies
+  the service is active, enabled listeners accept connections, and
+  `/healthz/live` returns 200 — so a green play means a working server.
+- `stalwart_extra_config` accepts raw TOML appended verbatim to
+  `config.toml` for any local setting the role doesn't model.
 
 ## Example: existing certs + PostgreSQL
 

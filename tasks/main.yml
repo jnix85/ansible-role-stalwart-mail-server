@@ -28,3 +28,10 @@
   ansible.builtin.import_tasks: firewall.yml
   when: stalwart_manage_firewall | bool
   tags: [stalwart, stalwart_firewall]
+
+- name: Run post-install smoke test
+  ansible.builtin.import_tasks: smoke.yml
+  when:
+    - stalwart_smoke_test | bool
+    - stalwart_service_state == 'started'
+  tags: [stalwart, stalwart_smoke]

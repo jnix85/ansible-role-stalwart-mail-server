@@ -1,0 +1,42 @@
+---
+# Apply any pending restart before verifying, so we test the new state.
+- name: Flush handlers before smoke test
+  ansible.builtin.meta: flush_handlers
+
+- name: Gather service facts
+  ansible.builtin.service_facts:
+
+- name: Verify service is running
+  ansible.builtin.assert:
+    that:
+      - (stalwart_service_name ~ '.service') in ansible_facts.services
+      - ansible_facts.services[stalwart_service_name ~ '.service'].state == 'running'
+    fail_msg: >-
+      {{ stalwart_service_name }} is not running — check
+      'journalctl -u {{ stalwart_service_name }}' on the host
+      (a config.toml error is the most common cause).
+
+- name: Wait for SMTP listener
+  ansible.builtin.wait_for:
+    port: "{{ stalwart_smtp_port }}"
+    host: 127.0.0.1
+    timeout: 60
+  when: stalwart_smtp_enabled | bool
+
+- name: Wait for IMAP listener
+  ansible.builtin.wait_for:
+    port: "{{ stalwart_imap_port }}"
+    host: 127.0.0.1
+    timeout: 30
+  when: stalwart_imap_enabled | bool
+
+- name: Check HTTP health endpoint
+  ansible.builtin.uri:
+    url: "https://127.0.0.1:{{ stalwart_https_port }}/healthz/live"
+    validate_certs: false
+    status_code: 200
+  register: stalwart_smoke_health
+  retries: 5
+  delay: 5
+  until: stalwart_smoke_health.status == 200
+  when: stalwart_https_enabled | bool

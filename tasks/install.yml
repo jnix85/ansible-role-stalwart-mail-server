@@ -46,9 +46,42 @@
 - name: Download and install Stalwart {{ stalwart_version }}
   when: stalwart_installed_version != stalwart_version
   block:
+    - name: Build candidate download URL list
+      ansible.builtin.set_fact:
+        stalwart_url_candidates: >-
+          {{ [stalwart_download_url] if stalwart_download_url | length > 0
+             else stalwart_download_urls }}
+
+    - name: Probe candidate download URLs
+      ansible.builtin.uri:
+        url: "{{ item }}"
+        method: HEAD
+        follow_redirects: all
+      register: stalwart_url_probe
+      failed_when: false
+      loop: "{{ stalwart_url_candidates }}"
+
+    - name: Select first reachable download URL
+      ansible.builtin.set_fact:
+        stalwart_effective_download_url: >-
+          {{ stalwart_url_probe.results
+             | selectattr('status', 'defined')
+             | selectattr('status', 'equalto', 200)
+             | map(attribute='item') | list
+             | first | default('') }}
+
+    - name: Assert a download URL is reachable
+      ansible.builtin.assert:
+        that:
+          - stalwart_effective_download_url | length > 0
+        fail_msg: >-
+          No Stalwart release asset found for version {{ stalwart_version }}.
+          Tried: {{ stalwart_url_candidates | join(', ') }}.
+          Check the release assets on GitHub and set stalwart_download_url.
+
     - name: Download release tarball
       ansible.builtin.get_url:
-        url: "{{ stalwart_download_url }}"
+        url: "{{ stalwart_effective_download_url }}"
         dest: "/tmp/stalwart-{{ stalwart_version }}.tar.gz"
         checksum: "{{ stalwart_download_checksum | default('', true) or omit }}"
         mode: "0644"
@@ -65,9 +98,27 @@
         dest: "/tmp/stalwart-{{ stalwart_version }}"
         remote_src: true
 
+    - name: Locate binary in extracted archive
+      ansible.builtin.find:
+        paths: "/tmp/stalwart-{{ stalwart_version }}"
+        patterns:
+          - stalwart
+          - stalwart-mail
+        file_type: file
+        recurse: true
+      register: stalwart_binary_find
+
+    - name: Assert the binary was found
+      ansible.builtin.assert:
+        that:
+          - stalwart_binary_find.files | length > 0
+        fail_msg: >-
+          No stalwart binary found in the extracted archive
+          (looked for "stalwart" and "stalwart-mail").
+
     - name: Install stalwart binary
       ansible.builtin.copy:
-        src: "/tmp/stalwart-{{ stalwart_version }}/stalwart"
+        src: "{{ (stalwart_binary_find.files | sort(attribute='path') | first).path }}"
         dest: "{{ stalwart_install_dir }}/bin/stalwart"
         remote_src: true
         owner: root
