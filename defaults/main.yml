@@ -1,0 +1,178 @@
+---
+# ------------------------------------------------------------------
+# Version / download
+# ------------------------------------------------------------------
+
+# Stalwart release to install (git tag without the leading "v").
+stalwart_version: "0.16.9"
+
+# GitHub repository releases are downloaded from.
+stalwart_github_repo: stalwartlabs/stalwart
+
+# Map ansible_architecture to the release target triple architecture.
+stalwart_arch_map:
+  x86_64: x86_64
+  aarch64: aarch64
+
+# libc flavour of the release binary: gnu or musl.
+stalwart_libc: gnu
+
+# Candidate download URLs, probed in order at install time; the first
+# one that responds is used. Upstream renamed its release assets from
+# stalwart-mail-* to stalwart-* over time, so both are covered.
+stalwart_download_urls:
+  - >-
+    https://github.com/{{ stalwart_github_repo }}/releases/download/v{{ stalwart_version }}/stalwart-{{
+    stalwart_arch_map[ansible_architecture] | default(ansible_architecture) }}-unknown-linux-{{ stalwart_libc }}.tar.gz
+  - >-
+    https://github.com/{{ stalwart_github_repo }}/releases/download/v{{ stalwart_version }}/stalwart-mail-{{
+    stalwart_arch_map[ansible_architecture] | default(ansible_architecture) }}-unknown-linux-{{ stalwart_libc }}.tar.gz
+
+# Explicit URL override (internal mirror, exotic asset name). When set,
+# it is used directly and the candidate list above is ignored.
+stalwart_download_url: ""
+
+# Optional checksum for the downloaded tarball, e.g. "sha256:abcd...".
+stalwart_download_checksum: ""
+
+# ------------------------------------------------------------------
+# Install layout / service
+# ------------------------------------------------------------------
+
+stalwart_install_dir: /opt/stalwart
+stalwart_user: stalwart
+stalwart_group: stalwart
+stalwart_service_name: stalwart
+stalwart_service_enabled: true
+stalwart_service_state: started
+
+# ------------------------------------------------------------------
+# Identity
+# ------------------------------------------------------------------
+
+# Fully qualified hostname the server identifies as (EHLO, certs, ...).
+stalwart_hostname: "{{ ansible_fqdn }}"
+
+# ------------------------------------------------------------------
+# Administrator account (REQUIRED)
+# ------------------------------------------------------------------
+
+stalwart_admin_user: admin
+
+# REQUIRED: supply via Ansible Vault. The role fails fast when unset.
+# Stored on the host only as a SHA512-crypt hash.
+stalwart_admin_password: ""
+
+# ------------------------------------------------------------------
+# TLS
+# ------------------------------------------------------------------
+
+# One of: acme | files | selfsigned
+#   acme       - Stalwart obtains certificates itself (Let's Encrypt).
+#   files      - use existing certificate/key files on the host.
+#   selfsigned - role generates a self-signed certificate (labs/testing).
+stalwart_tls_mode: selfsigned
+
+# --- acme ---
+stalwart_acme_directory_url: "https://acme-v02.api.letsencrypt.org/directory"
+# tls-alpn-01 requires port 443 to be reachable from the internet.
+stalwart_acme_challenge: tls-alpn-01
+stalwart_acme_contact: "postmaster@{{ stalwart_hostname }}"
+stalwart_acme_domains:
+  - "{{ stalwart_hostname }}"
+
+# --- files ---
+# Absolute paths on the managed host; must be readable by {{ stalwart_user }}.
+stalwart_tls_cert_file: ""
+stalwart_tls_key_file: ""
+
+# --- selfsigned ---
+stalwart_selfsigned_dir: "{{ stalwart_install_dir }}/etc/certs"
+stalwart_selfsigned_days: 3650
+
+# ------------------------------------------------------------------
+# Storage
+# ------------------------------------------------------------------
+
+# One of: rocksdb | sqlite | postgresql
+stalwart_storage_backend: rocksdb
+
+stalwart_data_dir: "{{ stalwart_install_dir }}/data"
+stalwart_rocksdb_compression: lz4
+
+# postgresql backend settings (the role does NOT install PostgreSQL).
+stalwart_postgresql_host: localhost
+stalwart_postgresql_port: 5432
+stalwart_postgresql_database: stalwart
+stalwart_postgresql_user: stalwart
+stalwart_postgresql_password: ""
+stalwart_postgresql_timeout: 15s
+
+# ------------------------------------------------------------------
+# Listeners
+# ------------------------------------------------------------------
+
+# Address to bind listeners on. "[::]" binds all v6+v4 on Linux.
+stalwart_listen_address: "[::]"
+
+stalwart_smtp_enabled: true
+stalwart_smtp_port: 25
+
+stalwart_submission_enabled: true
+stalwart_submission_port: 587
+
+stalwart_submissions_enabled: true
+stalwart_submissions_port: 465
+
+stalwart_imap_enabled: true
+stalwart_imap_port: 143
+
+stalwart_imaps_enabled: true
+stalwart_imaps_port: 993
+
+stalwart_pop3_enabled: false
+stalwart_pop3_port: 110
+stalwart_pop3s_port: 995
+
+stalwart_managesieve_enabled: false
+stalwart_managesieve_port: 4190
+
+# HTTPS listener: JMAP, REST API and the web admin UI.
+stalwart_https_enabled: true
+stalwart_https_port: 443
+
+# Optional plaintext HTTP listener (behind a reverse proxy).
+stalwart_http_enabled: false
+stalwart_http_port: 8080
+
+# ------------------------------------------------------------------
+# Logging
+# ------------------------------------------------------------------
+
+stalwart_log_level: info
+stalwart_log_dir: "{{ stalwart_install_dir }}/logs"
+stalwart_log_rotate: daily
+
+# ------------------------------------------------------------------
+# Firewall (opt-in)
+# ------------------------------------------------------------------
+
+# When true, opens the enabled listener ports via ufw (Debian family)
+# or firewalld (RedHat family). The role never enables/activates the
+# firewall itself to avoid locking you out — see README.
+stalwart_manage_firewall: false
+
+# ------------------------------------------------------------------
+# Post-install smoke test
+# ------------------------------------------------------------------
+
+# After deployment, verify the service is active, enabled listeners
+# accept connections, and the HTTP health endpoint responds.
+stalwart_smoke_test: true
+
+# ------------------------------------------------------------------
+# Escape hatch
+# ------------------------------------------------------------------
+
+# Raw TOML appended verbatim to the end of config.toml.
+stalwart_extra_config: ""

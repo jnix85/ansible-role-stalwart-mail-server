@@ -1,0 +1,135 @@
+---
+- name: Install prerequisite packages
+  ansible.builtin.package:
+    name: "{{ stalwart_prereq_packages }}"
+    state: present
+
+- name: Create stalwart group
+  ansible.builtin.group:
+    name: "{{ stalwart_group }}"
+    system: true
+
+- name: Create stalwart user
+  ansible.builtin.user:
+    name: "{{ stalwart_user }}"
+    group: "{{ stalwart_group }}"
+    system: true
+    shell: "{{ stalwart_user_shell }}"
+    home: "{{ stalwart_install_dir }}"
+    create_home: false
+
+- name: Create installation directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    group: "{{ stalwart_group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - {path: "{{ stalwart_install_dir }}", owner: root, mode: "0755"}
+    - {path: "{{ stalwart_install_dir }}/bin", owner: root, mode: "0755"}
+    - {path: "{{ stalwart_install_dir }}/etc", owner: "{{ stalwart_user }}", mode: "0750"}
+    - {path: "{{ stalwart_data_dir }}", owner: "{{ stalwart_user }}", mode: "0750"}
+    - {path: "{{ stalwart_log_dir }}", owner: "{{ stalwart_user }}", mode: "0750"}
+
+- name: Check installed Stalwart version
+  ansible.builtin.command: "{{ stalwart_install_dir }}/bin/stalwart --version"
+  register: stalwart_version_check
+  changed_when: false
+  failed_when: false
+
+- name: Set installed version fact
+  ansible.builtin.set_fact:
+    stalwart_installed_version: >-
+      {{ (stalwart_version_check.stdout | default('')) | regex_search('\d+\.\d+\.\d+') or 'absent' }}
+
+- name: Download and install Stalwart {{ stalwart_version }}
+  when: stalwart_installed_version != stalwart_version
+  block:
+    - name: Build candidate download URL list
+      ansible.builtin.set_fact:
+        stalwart_url_candidates: >-
+          {{ [stalwart_download_url] if stalwart_download_url | length > 0
+             else stalwart_download_urls }}
+
+    - name: Probe candidate download URLs
+      ansible.builtin.uri:
+        url: "{{ item }}"
+        method: HEAD
+        follow_redirects: all
+      register: stalwart_url_probe
+      failed_when: false
+      loop: "{{ stalwart_url_candidates }}"
+
+    - name: Select first reachable download URL
+      ansible.builtin.set_fact:
+        stalwart_effective_download_url: >-
+          {{ stalwart_url_probe.results
+             | selectattr('status', 'defined')
+             | selectattr('status', 'equalto', 200)
+             | map(attribute='item') | list
+             | first | default('') }}
+
+    - name: Assert a download URL is reachable
+      ansible.builtin.assert:
+        that:
+          - stalwart_effective_download_url | length > 0
+        fail_msg: >-
+          No Stalwart release asset found for version {{ stalwart_version }}.
+          Tried: {{ stalwart_url_candidates | join(', ') }}.
+          Check the release assets on GitHub and set stalwart_download_url.
+
+    - name: Download release tarball
+      ansible.builtin.get_url:
+        url: "{{ stalwart_effective_download_url }}"
+        dest: "/tmp/stalwart-{{ stalwart_version }}.tar.gz"
+        checksum: "{{ stalwart_download_checksum | default('', true) or omit }}"
+        mode: "0644"
+
+    - name: Create extraction directory
+      ansible.builtin.file:
+        path: "/tmp/stalwart-{{ stalwart_version }}"
+        state: directory
+        mode: "0755"
+
+    - name: Extract release tarball
+      ansible.builtin.unarchive:
+        src: "/tmp/stalwart-{{ stalwart_version }}.tar.gz"
+        dest: "/tmp/stalwart-{{ stalwart_version }}"
+        remote_src: true
+
+    - name: Locate binary in extracted archive
+      ansible.builtin.find:
+        paths: "/tmp/stalwart-{{ stalwart_version }}"
+        patterns:
+          - stalwart
+          - stalwart-mail
+        file_type: file
+        recurse: true
+      register: stalwart_binary_find
+
+    - name: Assert the binary was found
+      ansible.builtin.assert:
+        that:
+          - stalwart_binary_find.files | length > 0
+        fail_msg: >-
+          No stalwart binary found in the extracted archive
+          (looked for "stalwart" and "stalwart-mail").
+
+    - name: Install stalwart binary
+      ansible.builtin.copy:
+        src: "{{ (stalwart_binary_find.files | sort(attribute='path') | first).path }}"
+        dest: "{{ stalwart_install_dir }}/bin/stalwart"
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0755"
+      notify: Restart stalwart
+
+    - name: Clean up download artifacts
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "/tmp/stalwart-{{ stalwart_version }}.tar.gz"
+        - "/tmp/stalwart-{{ stalwart_version }}"

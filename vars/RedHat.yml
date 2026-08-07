@@ -1,0 +1,9 @@
+---
+stalwart_user_shell: /sbin/nologin
+stalwart_firewall_packages:
+  - firewalld
+stalwart_prereq_packages:
+  - ca-certificates
+  - openssl
+  - tar
+  - gzip

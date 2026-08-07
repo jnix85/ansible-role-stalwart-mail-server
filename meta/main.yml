@@ -1,0 +1,30 @@
+---
+galaxy_info:
+  role_name: stalwart_mail_server
+  namespace: jnix85
+  author: jnix85
+  description: Install and configure the Stalwart mail server from official release binaries
+  license: MIT
+  min_ansible_version: "2.15"
+  platforms:
+    - name: Debian
+      versions:
+        - bookworm
+        - trixie
+    - name: Ubuntu
+      versions:
+        - jammy
+        - noble
+    - name: EL
+      versions:
+        - "9"
+  galaxy_tags:
+    - mail
+    - email
+    - smtp
+    - imap
+    - jmap
+    - stalwart
+    - mailserver
+
+dependencies: []

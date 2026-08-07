@@ -1,0 +1,15 @@
+---
+profile: production
+
+exclude_paths:
+  - .cache/
+
+# The role is distributed as jnix85.stalwart_mail_server; the repository
+# directory name differs, which offline role-name checks can't know.
+skip_list:
+  - role-name
+
+# Molecule playbooks reference the role by its Galaxy name, which only
+# resolves once the repo is checked out under that directory name.
+mock_roles:
+  - jnix85.stalwart_mail_server

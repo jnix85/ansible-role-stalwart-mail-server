@@ -1,0 +1,41 @@
+---
+- name: Create self-signed certificate directory
+  ansible.builtin.file:
+    path: "{{ stalwart_selfsigned_dir }}"
+    state: directory
+    owner: "{{ stalwart_user }}"
+    group: "{{ stalwart_group }}"
+    mode: "0750"
+
+- name: Generate self-signed certificate
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - req
+      - -x509
+      - -newkey
+      - rsa:4096
+      - -sha256
+      - -nodes
+      - -days
+      - "{{ stalwart_selfsigned_days }}"
+      - -subj
+      - "/CN={{ stalwart_hostname }}"
+      - -addext
+      - "subjectAltName=DNS:{{ stalwart_hostname }}"
+      - -keyout
+      - "{{ stalwart_selfsigned_dir }}/key.pem"
+      - -out
+      - "{{ stalwart_selfsigned_dir }}/cert.pem"
+    creates: "{{ stalwart_selfsigned_dir }}/cert.pem"
+  notify: Restart stalwart
+
+- name: Restrict certificate file permissions
+  ansible.builtin.file:
+    path: "{{ stalwart_selfsigned_dir }}/{{ item }}"
+    owner: "{{ stalwart_user }}"
+    group: "{{ stalwart_group }}"
+    mode: "0600"
+  loop:
+    - cert.pem
+    - key.pem

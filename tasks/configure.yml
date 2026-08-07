@@ -1,0 +1,51 @@
+---
+# The admin password is hashed on the target with a salt derived
+# deterministically from the password itself, so repeated runs produce
+# the same hash and the config template stays idempotent.
+- name: Hash administrator password
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - passwd
+      - "-6"
+      - -salt
+      - "{{ (stalwart_admin_password ~ stalwart_hostname) | hash('sha256') | truncate(16, true, '') }}"
+      - -stdin
+    stdin: "{{ stalwart_admin_password }}"
+  register: stalwart_admin_hash_result
+  changed_when: false
+  no_log: true
+
+- name: Set admin secret hash fact
+  ansible.builtin.set_fact:
+    stalwart_admin_secret_hash: "{{ stalwart_admin_hash_result.stdout | trim }}"
+  no_log: true
+
+- name: Resolve TLS certificate paths
+  ansible.builtin.set_fact:
+    stalwart_effective_cert_file: >-
+      {{ stalwart_tls_cert_file if stalwart_tls_mode == 'files'
+         else stalwart_selfsigned_dir ~ '/cert.pem' }}
+    stalwart_effective_key_file: >-
+      {{ stalwart_tls_key_file if stalwart_tls_mode == 'files'
+         else stalwart_selfsigned_dir ~ '/key.pem' }}
+  when: stalwart_tls_mode in ['files', 'selfsigned']
+
+- name: Create ACME cache directory
+  ansible.builtin.file:
+    path: "{{ stalwart_install_dir }}/etc/acme"
+    state: directory
+    owner: "{{ stalwart_user }}"
+    group: "{{ stalwart_group }}"
+    mode: "0700"
+  when: stalwart_tls_mode == 'acme'
+
+- name: Template Stalwart configuration
+  ansible.builtin.template:
+    src: config.toml.j2
+    dest: "{{ stalwart_install_dir }}/etc/config.toml"
+    owner: "{{ stalwart_user }}"
+    group: "{{ stalwart_group }}"
+    mode: "0600"
+  diff: false
+  notify: Restart stalwart
