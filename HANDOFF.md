@@ -16,10 +16,12 @@ once the items below are done.
 - The user's goal: run the role against a real host **soon**. `examples/`
   has a ready playbook + inventory; README documents everything.
 
-## Immediate task: apply the code-review fixes
+## Code-review fixes: 1-10 APPLIED in this branch, 11-13 deferred
 
-A 6-agent `/code-review` just completed; the user said "fix" right before
-hitting the usage limit. 13 findings (11 CONFIRMED, 2 PLAUSIBLE), ranked:
+A 6-agent `/code-review` completed; findings 1-10 below are **already
+fixed** on this branch (verify with git log/diff). Remaining, deferred
+pending user interest: 11 (IPv6 default doc), 12 (listener-list refactor),
+13 (password_hash filter tradeoff). Original ranked list for reference:
 
 1. **tasks/firewall.yml:29** — Role starts+enables firewalld on EL, but
    defaults/main.yml + README promise it "never enables/activates the

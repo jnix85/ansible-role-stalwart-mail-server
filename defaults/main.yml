@@ -170,6 +170,10 @@ stalwart_manage_firewall: false
 # accept connections, and the HTTP health endpoint responds.
 stalwart_smoke_test: true
 
+# Address the smoke test connects to. Change this when
+# stalwart_listen_address binds a specific (non-wildcard) address.
+stalwart_smoke_test_host: 127.0.0.1
+
 # ------------------------------------------------------------------
 # Escape hatch
 # ------------------------------------------------------------------

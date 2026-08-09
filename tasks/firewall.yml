@@ -1,5 +1,5 @@
 ---
-- name: Compute enabled listener ports
+- name: Compute listener port sets
   ansible.builtin.set_fact:
     stalwart_open_ports: >-
       {{ (stalwart_smtp_enabled | ternary([stalwart_smtp_port], []))
@@ -11,6 +11,16 @@
        + (stalwart_managesieve_enabled | ternary([stalwart_managesieve_port], []))
        + (stalwart_https_enabled | ternary([stalwart_https_port], []))
        + (stalwart_http_enabled | ternary([stalwart_http_port], [])) }}
+    stalwart_closed_ports: >-
+      {{ (stalwart_smtp_enabled | ternary([], [stalwart_smtp_port]))
+       + (stalwart_submission_enabled | ternary([], [stalwart_submission_port]))
+       + (stalwart_submissions_enabled | ternary([], [stalwart_submissions_port]))
+       + (stalwart_imap_enabled | ternary([], [stalwart_imap_port]))
+       + (stalwart_imaps_enabled | ternary([], [stalwart_imaps_port]))
+       + (stalwart_pop3_enabled | ternary([], [stalwart_pop3_port, stalwart_pop3s_port]))
+       + (stalwart_managesieve_enabled | ternary([], [stalwart_managesieve_port]))
+       + (stalwart_https_enabled | ternary([], [stalwart_https_port]))
+       + (stalwart_http_enabled | ternary([], [stalwart_http_port])) }}
 
 - name: Install firewall packages
   ansible.builtin.package:
@@ -26,18 +36,43 @@
   loop: "{{ stalwart_open_ports }}"
   when: ansible_os_family == 'Debian'
 
-- name: Ensure firewalld is running
-  ansible.builtin.systemd_service:
-    name: firewalld
-    state: started
-    enabled: true
+- name: Remove rules for disabled listeners (ufw)
+  community.general.ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+    delete: true
+  loop: "{{ stalwart_closed_ports }}"
+  when: ansible_os_family == 'Debian'
+
+# The role never starts or enables firewalld itself (see README); rules
+# are applied immediately only when firewalld is already running,
+# otherwise they are written as permanent-only and take effect if/when
+# firewalld is started.
+- name: Check firewalld state
+  ansible.builtin.service_facts:
+  when: ansible_os_family == 'RedHat'
+
+- name: Set firewalld running fact
+  ansible.builtin.set_fact:
+    stalwart_firewalld_running: >-
+      {{ ansible_facts.services['firewalld.service'].state | default('') == 'running' }}
   when: ansible_os_family == 'RedHat'
 
 - name: Allow Stalwart ports (firewalld)
   ansible.posix.firewalld:
     port: "{{ item }}/tcp"
     permanent: true
-    immediate: true
+    immediate: "{{ stalwart_firewalld_running }}"
     state: enabled
   loop: "{{ stalwart_open_ports }}"
+  when: ansible_os_family == 'RedHat'
+
+- name: Remove rules for disabled listeners (firewalld)
+  ansible.posix.firewalld:
+    port: "{{ item }}/tcp"
+    permanent: true
+    immediate: "{{ stalwart_firewalld_running }}"
+    state: disabled
+  loop: "{{ stalwart_closed_ports }}"
   when: ansible_os_family == 'RedHat'

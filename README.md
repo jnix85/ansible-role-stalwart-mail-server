@@ -28,8 +28,9 @@ user.
 
 - Ansible **2.15+** on the controller
 - A systemd-based target on `x86_64` or `aarch64`
-- Collections `community.general` and `ansible.posix` (only when
-  `stalwart_manage_firewall: true`) — see `requirements.yml`
+- Collections (see `requirements.yml`): `community.crypto` (only for
+  `stalwart_tls_mode: selfsigned`), `community.general` and `ansible.posix`
+  (only when `stalwart_manage_firewall: true`)
 - Outbound HTTPS from the target to `github.com` (or override
   `stalwart_download_url` to point at an internal mirror)
 
@@ -124,16 +125,20 @@ Each protocol has an `_enabled` toggle and a `_port` variable:
 ### Firewall
 
 `stalwart_manage_firewall: false` by default. When enabled, the role opens the
-enabled listener ports via **ufw** (Debian family) or **firewalld** (RedHat
-family). It deliberately does **not** run `ufw enable` — activating a firewall
-with a default-deny policy could cut off your SSH session. Enable ufw yourself
-after allowing SSH.
+enabled listener ports — and removes rules for listeners you've toggled off —
+via **ufw** (Debian family) or **firewalld** (RedHat family). It deliberately
+never activates a firewall itself (no `ufw enable`, no starting/enabling
+firewalld): switching on a default-deny firewall could cut off your SSH
+session. If firewalld isn't running, rules are written permanent-only and take
+effect if you start it.
 
 ### Everything else
 
 - `stalwart_smoke_test` (default `true`): after deployment the role verifies
   the service is active, enabled listeners accept connections, and
-  `/healthz/live` returns 200 — so a green play means a working server.
+  `/healthz/live` returns 200 — so a green play means a working server. Set
+  `stalwart_smoke_test_host` if `stalwart_listen_address` binds a specific
+  address instead of a wildcard.
 - `stalwart_extra_config` accepts raw TOML appended verbatim to
   `config.toml` for any local setting the role doesn't model.
 

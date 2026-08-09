@@ -4,5 +4,7 @@ collections:
   - name: community.general
   # firewalld module (RedHat family firewall management)
   - name: ansible.posix
+  # self-signed certificate generation
+  - name: community.crypto
   # Molecule docker driver
   - name: community.docker

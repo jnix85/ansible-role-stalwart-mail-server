@@ -7,35 +7,37 @@
     group: "{{ stalwart_group }}"
     mode: "0750"
 
-- name: Generate self-signed certificate
-  ansible.builtin.command:
-    argv:
-      - openssl
-      - req
-      - -x509
-      - -newkey
-      - rsa:4096
-      - -sha256
-      - -nodes
-      - -days
-      - "{{ stalwart_selfsigned_days }}"
-      - -subj
-      - "/CN={{ stalwart_hostname }}"
-      - -addext
-      - "subjectAltName=DNS:{{ stalwart_hostname }}"
-      - -keyout
-      - "{{ stalwart_selfsigned_dir }}/key.pem"
-      - -out
-      - "{{ stalwart_selfsigned_dir }}/cert.pem"
-    creates: "{{ stalwart_selfsigned_dir }}/cert.pem"
-  notify: Restart stalwart
-
-- name: Restrict certificate file permissions
-  ansible.builtin.file:
-    path: "{{ stalwart_selfsigned_dir }}/{{ item }}"
+- name: Generate private key
+  community.crypto.openssl_privatekey:
+    path: "{{ stalwart_selfsigned_dir }}/key.pem"
+    type: RSA
+    size: 4096
     owner: "{{ stalwart_user }}"
     group: "{{ stalwart_group }}"
     mode: "0600"
-  loop:
-    - cert.pem
-    - key.pem
+  notify: Restart stalwart
+
+- name: Generate certificate signing request
+  community.crypto.openssl_csr:
+    path: "{{ stalwart_selfsigned_dir }}/csr.pem"
+    privatekey_path: "{{ stalwart_selfsigned_dir }}/key.pem"
+    common_name: "{{ stalwart_hostname }}"
+    subject_alt_name:
+      - "DNS:{{ stalwart_hostname }}"
+    owner: "{{ stalwart_user }}"
+    group: "{{ stalwart_group }}"
+    mode: "0600"
+  register: stalwart_selfsigned_csr
+
+- name: Generate self-signed certificate
+  community.crypto.x509_certificate:
+    path: "{{ stalwart_selfsigned_dir }}/cert.pem"
+    csr_path: "{{ stalwart_selfsigned_dir }}/csr.pem"
+    privatekey_path: "{{ stalwart_selfsigned_dir }}/key.pem"
+    provider: selfsigned
+    selfsigned_not_after: "+{{ stalwart_selfsigned_days }}d"
+    force: "{{ stalwart_selfsigned_csr.changed }}"
+    owner: "{{ stalwart_user }}"
+    group: "{{ stalwart_group }}"
+    mode: "0600"
+  notify: Restart stalwart

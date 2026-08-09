@@ -7,3 +7,4 @@ stalwart_prereq_packages:
   - openssl
   - tar
   - gzip
+  - python3-cryptography
