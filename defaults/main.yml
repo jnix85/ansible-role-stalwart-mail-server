@@ -112,8 +112,11 @@ stalwart_postgresql_timeout: 15s
 # Listeners
 # ------------------------------------------------------------------
 
-# Address to bind listeners on. "[::]" binds all v6+v4 on Linux.
-stalwart_listen_address: "[::]"
+# Address to bind listeners on.
+#   auto      - "[::]" (all v6+v4, dual-stack) when the host has IPv6,
+#               "0.0.0.0" when IPv6 is disabled (e.g. ipv6.disable=1).
+#   "[::]", "0.0.0.0", or a specific address - used as-is.
+stalwart_listen_address: auto
 
 stalwart_smtp_enabled: true
 stalwart_smtp_port: 25

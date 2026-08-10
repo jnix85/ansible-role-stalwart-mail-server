@@ -19,9 +19,9 @@ once the items below are done.
 ## Code-review fixes: 1-10 APPLIED in this branch, 11-13 deferred
 
 A 6-agent `/code-review` completed; findings 1-10 below are **already
-fixed** on this branch (verify with git log/diff). Remaining, deferred
-pending user interest: 11 (IPv6 default doc), 12 (listener-list refactor),
-13 (password_hash filter tradeoff). Original ranked list for reference:
+fixed** on this branch (verify with git log/diff). Finding 11 is also fixed (stalwart_listen_address: auto detects IPv6 and
+falls back to 0.0.0.0). Remaining, deferred pending user interest:
+12 (listener-list refactor), 13 (password_hash filter tradeoff). Original ranked list for reference:
 
 1. **tasks/firewall.yml:29** — Role starts+enables firewalld on EL, but
    defaults/main.yml + README promise it "never enables/activates the

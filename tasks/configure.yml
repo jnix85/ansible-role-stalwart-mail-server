@@ -21,6 +21,15 @@
     stalwart_admin_secret_hash: "{{ stalwart_admin_hash_result.stdout | trim }}"
   no_log: true
 
+# "auto" binds dual-stack when the host has IPv6, IPv4-only otherwise
+# (hosts booted with ipv6.disable=1 cannot bind "[::]" at all).
+- name: Resolve listener bind address
+  ansible.builtin.set_fact:
+    stalwart_effective_listen_address: >-
+      {{ stalwart_listen_address if stalwart_listen_address != 'auto'
+         else ('[::]' if ansible_all_ipv6_addresses | default([]) | length > 0
+               else '0.0.0.0') }}
+
 - name: Resolve TLS certificate paths
   ansible.builtin.set_fact:
     stalwart_effective_cert_file: >-

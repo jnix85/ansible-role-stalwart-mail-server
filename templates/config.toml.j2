@@ -9,63 +9,63 @@ hostname = "{{ stalwart_hostname }}"
 
 {% if stalwart_smtp_enabled %}
 [server.listener."smtp"]
-bind = ["{{ stalwart_listen_address }}:{{ stalwart_smtp_port }}"]
+bind = ["{{ stalwart_effective_listen_address }}:{{ stalwart_smtp_port }}"]
 protocol = "smtp"
 
 {% endif %}
 {% if stalwart_submission_enabled %}
 [server.listener."submission"]
-bind = ["{{ stalwart_listen_address }}:{{ stalwart_submission_port }}"]
+bind = ["{{ stalwart_effective_listen_address }}:{{ stalwart_submission_port }}"]
 protocol = "smtp"
 
 {% endif %}
 {% if stalwart_submissions_enabled %}
 [server.listener."submissions"]
-bind = ["{{ stalwart_listen_address }}:{{ stalwart_submissions_port }}"]
+bind = ["{{ stalwart_effective_listen_address }}:{{ stalwart_submissions_port }}"]
 protocol = "smtp"
 tls.implicit = true
 
 {% endif %}
 {% if stalwart_imap_enabled %}
 [server.listener."imap"]
-bind = ["{{ stalwart_listen_address }}:{{ stalwart_imap_port }}"]
+bind = ["{{ stalwart_effective_listen_address }}:{{ stalwart_imap_port }}"]
 protocol = "imap"
 
 {% endif %}
 {% if stalwart_imaps_enabled %}
 [server.listener."imaptls"]
-bind = ["{{ stalwart_listen_address }}:{{ stalwart_imaps_port }}"]
+bind = ["{{ stalwart_effective_listen_address }}:{{ stalwart_imaps_port }}"]
 protocol = "imap"
 tls.implicit = true
 
 {% endif %}
 {% if stalwart_pop3_enabled %}
 [server.listener."pop3"]
-bind = ["{{ stalwart_listen_address }}:{{ stalwart_pop3_port }}"]
+bind = ["{{ stalwart_effective_listen_address }}:{{ stalwart_pop3_port }}"]
 protocol = "pop3"
 
 [server.listener."pop3s"]
-bind = ["{{ stalwart_listen_address }}:{{ stalwart_pop3s_port }}"]
+bind = ["{{ stalwart_effective_listen_address }}:{{ stalwart_pop3s_port }}"]
 protocol = "pop3"
 tls.implicit = true
 
 {% endif %}
 {% if stalwart_managesieve_enabled %}
 [server.listener."sieve"]
-bind = ["{{ stalwart_listen_address }}:{{ stalwart_managesieve_port }}"]
+bind = ["{{ stalwart_effective_listen_address }}:{{ stalwart_managesieve_port }}"]
 protocol = "managesieve"
 
 {% endif %}
 {% if stalwart_https_enabled %}
 [server.listener."https"]
-bind = ["{{ stalwart_listen_address }}:{{ stalwart_https_port }}"]
+bind = ["{{ stalwart_effective_listen_address }}:{{ stalwart_https_port }}"]
 protocol = "http"
 tls.implicit = true
 
 {% endif %}
 {% if stalwart_http_enabled %}
 [server.listener."http"]
-bind = ["{{ stalwart_listen_address }}:{{ stalwart_http_port }}"]
+bind = ["{{ stalwart_effective_listen_address }}:{{ stalwart_http_port }}"]
 protocol = "http"
 
 {% endif %}

@@ -108,6 +108,11 @@ Defaults live in [`defaults/main.yml`](defaults/main.yml). The important ones:
 
 ### Listeners
 
+`stalwart_listen_address` defaults to `auto`: dual-stack `[::]` when the host
+has IPv6, `0.0.0.0` when IPv6 is disabled (e.g. booted with `ipv6.disable=1`).
+Set it explicitly to pin a specific bind address — and set
+`stalwart_smoke_test_host` to match if it isn't a wildcard.
+
 Each protocol has an `_enabled` toggle and a `_port` variable:
 
 | Toggle | Default | Port(s) |
