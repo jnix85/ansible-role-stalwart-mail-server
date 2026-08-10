@@ -133,7 +133,9 @@ the gap after lint finishes, before molecule statuses appear.
 
 ## Decisions already made by the user (don't relitigate)
 
-- Platforms: Debian/Ubuntu AND EL9. Install: native binary (no Docker).
+- Platforms: narrowed (user request, Aug 10) to Debian 13 + Ubuntu
+  24.04/26.04 as the tested targets; EL code paths remain in the role but
+  are untested/unadvertised. Install: native binary (no Docker).
 - TLS + storage: both configurable (acme/files/selfsigned;
   rocksdb/sqlite/postgresql).
 - CI: CircleCI (GitHub Actions was removed deliberately — the user's

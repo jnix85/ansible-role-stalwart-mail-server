@@ -9,7 +9,8 @@ user.
 
 ## Features
 
-- **Debian/Ubuntu and RHEL/Rocky/Alma (EL9)** support
+- **Debian 13 and Ubuntu 24.04/26.04** support (the primary, CI-tested
+  targets; RHEL-family code paths exist but are currently untested)
 - **Native binary install** to `/opt/stalwart`, version-pinned and upgradeable
   by bumping `stalwart_version`
 - **Configurable TLS**: Stalwart's built-in ACME (Let's Encrypt), existing
@@ -181,8 +182,8 @@ The role sets up the server; deliverability needs DNS:
 ```sh
 pip install ansible-core molecule molecule-plugins[docker] docker ansible-lint yamllint
 ansible-galaxy collection install -r requirements.yml
-molecule test                       # Debian 12 (default)
-MOLECULE_DISTRO=rockylinux9 molecule test
+molecule test                       # Debian 13 (default)
+MOLECULE_DISTRO=ubuntu2404 molecule test
 ```
 
 Note: Molecule resolves the role by its Galaxy name, so clone this repository
@@ -190,8 +191,8 @@ into a directory named `jnix85.stalwart_mail_server` (CircleCI does this
 automatically).
 
 CI runs on [CircleCI](https://circleci.com): a lint job (yamllint +
-ansible-lint) gates a Molecule matrix across Debian 12, Rocky Linux 9 and
-Ubuntu 24.04.
+ansible-lint) gates a Molecule matrix across Debian 13, Ubuntu 24.04 and
+Ubuntu 26.04.
 
 ## License
 
