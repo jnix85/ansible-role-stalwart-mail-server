@@ -16,19 +16,14 @@
       'journalctl -u {{ stalwart_service_name }}' on the host
       (a config.toml error is the most common cause).
 
-- name: Wait for SMTP listener
+- name: Wait for enabled listeners
   ansible.builtin.wait_for:
-    port: "{{ stalwart_smtp_port }}"
+    port: "{{ item.port }}"
     host: "{{ stalwart_smoke_test_host }}"
     timeout: 60
-  when: stalwart_smtp_enabled | bool
-
-- name: Wait for IMAP listener
-  ansible.builtin.wait_for:
-    port: "{{ stalwart_imap_port }}"
-    host: "{{ stalwart_smoke_test_host }}"
-    timeout: 30
-  when: stalwart_imap_enabled | bool
+  loop: "{{ stalwart_listeners | selectattr('enabled') | list }}"
+  loop_control:
+    label: "{{ item.name }}:{{ item.port }}"
 
 - name: Check HTTP health endpoint
   ansible.builtin.uri:

@@ -32,6 +32,16 @@ stalwart_download_urls:
 # it is used directly and the candidate list above is ignored.
 stalwart_download_url: ""
 
+# Also install the stalwart-cli admin tool alongside the server.
+stalwart_cli_install: false
+stalwart_cli_download_urls:
+  - >-
+    https://github.com/{{ stalwart_github_repo }}/releases/download/v{{ stalwart_version }}/stalwart-cli-{{
+    stalwart_arch_map[ansible_architecture] | default(ansible_architecture) }}-unknown-linux-{{ stalwart_libc }}.tar.gz
+# Explicit override for the CLI tarball, same semantics as
+# stalwart_download_url.
+stalwart_cli_download_url: ""
+
 # Optional checksum for the downloaded tarball, e.g. "sha256:abcd...".
 stalwart_download_checksum: ""
 
@@ -147,6 +157,57 @@ stalwart_https_port: 443
 # Optional plaintext HTTP listener (behind a reverse proxy).
 stalwart_http_enabled: false
 stalwart_http_port: 8080
+
+# Single source of truth for listeners, derived from the toggles above.
+# The config template, firewall rules and smoke test all iterate this
+# list, so the definitions can never drift apart. Override it entirely
+# to add custom listeners (fields: name, protocol, enabled, port, and
+# optional tls_implicit).
+stalwart_listeners:
+  - name: smtp
+    protocol: smtp
+    enabled: "{{ stalwart_smtp_enabled }}"
+    port: "{{ stalwart_smtp_port }}"
+  - name: submission
+    protocol: smtp
+    enabled: "{{ stalwart_submission_enabled }}"
+    port: "{{ stalwart_submission_port }}"
+  - name: submissions
+    protocol: smtp
+    enabled: "{{ stalwart_submissions_enabled }}"
+    port: "{{ stalwart_submissions_port }}"
+    tls_implicit: true
+  - name: imap
+    protocol: imap
+    enabled: "{{ stalwart_imap_enabled }}"
+    port: "{{ stalwart_imap_port }}"
+  - name: imaptls
+    protocol: imap
+    enabled: "{{ stalwart_imaps_enabled }}"
+    port: "{{ stalwart_imaps_port }}"
+    tls_implicit: true
+  - name: pop3
+    protocol: pop3
+    enabled: "{{ stalwart_pop3_enabled }}"
+    port: "{{ stalwart_pop3_port }}"
+  - name: pop3s
+    protocol: pop3
+    enabled: "{{ stalwart_pop3_enabled }}"
+    port: "{{ stalwart_pop3s_port }}"
+    tls_implicit: true
+  - name: sieve
+    protocol: managesieve
+    enabled: "{{ stalwart_managesieve_enabled }}"
+    port: "{{ stalwart_managesieve_port }}"
+  - name: https
+    protocol: http
+    enabled: "{{ stalwart_https_enabled }}"
+    port: "{{ stalwart_https_port }}"
+    tls_implicit: true
+  - name: http
+    protocol: http
+    enabled: "{{ stalwart_http_enabled }}"
+    port: "{{ stalwart_http_port }}"
 
 # ------------------------------------------------------------------
 # Logging

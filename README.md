@@ -82,6 +82,7 @@ Defaults live in [`defaults/main.yml`](defaults/main.yml). The important ones:
 | `stalwart_libc` | `gnu` | `gnu` or `musl` release flavour. |
 | `stalwart_install_dir` | `/opt/stalwart` | Install prefix (`bin/`, `etc/`, `data/`, `logs/`). |
 | `stalwart_user` / `stalwart_group` | `stalwart` | Dedicated system account the daemon runs as. |
+| `stalwart_cli_install` | `false` | Also install the `stalwart-cli` admin tool to `bin/stalwart-cli`. |
 
 ### Identity & admin
 
@@ -127,6 +128,11 @@ Each protocol has an `_enabled` toggle and a `_port` variable:
 | `stalwart_managesieve_enabled` | `false` | 4190 |
 | `stalwart_https_enabled` | `true` | 443 (JMAP, REST API, web admin) |
 | `stalwart_http_enabled` | `false` | 8080 (plaintext, for reverse proxies) |
+
+The toggles feed a single `stalwart_listeners` list that the config
+template, firewall rules and smoke test all iterate — override that list
+directly to add custom listeners (fields: `name`, `protocol`, `enabled`,
+`port`, optional `tls_implicit`).
 
 ### Firewall
 
