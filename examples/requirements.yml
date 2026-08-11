@@ -1,0 +1,11 @@
+---
+roles:
+  - name: jnix85.stalwart_mail_server
+    src: https://github.com/jnix85/ansible-role-stalwart-mail-server
+    scm: git
+    version: main
+
+collections:
+  - name: community.crypto
+  - name: community.general
+  - name: ansible.posix

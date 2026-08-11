@@ -1,0 +1,33 @@
+---
+# Stalwart configuration for the mailservers group.
+# Secrets live in vault.yml (encrypted) next to this file.
+
+# The FQDN the server identifies as (EHLO, certificates, web admin).
+stalwart_hostname: "{{ inventory_hostname }}"
+
+# From vault.yml — never put the real password here.
+stalwart_admin_password: "{{ vault_stalwart_admin_password }}"
+
+# --- TLS -----------------------------------------------------------
+# Production: Stalwart obtains Let's Encrypt certificates itself.
+# Requires the hostname to resolve to this host and port 443 reachable
+# from the internet. For a lab box use: stalwart_tls_mode: selfsigned
+stalwart_tls_mode: acme
+stalwart_acme_contact: "postmaster@{{ inventory_hostname }}"
+stalwart_acme_domains:
+  - "{{ inventory_hostname }}"
+
+# --- Storage -------------------------------------------------------
+# rocksdb (default, embedded) | sqlite | postgresql
+stalwart_storage_backend: rocksdb
+
+# --- Extras --------------------------------------------------------
+# Open the enabled listener ports (never activates the firewall itself).
+stalwart_manage_firewall: true
+
+# Install the stalwart-cli admin tool alongside the server.
+stalwart_cli_install: true
+
+# Example listener tweaks (defaults shown; uncomment to change):
+# stalwart_pop3_enabled: true
+# stalwart_managesieve_enabled: true
