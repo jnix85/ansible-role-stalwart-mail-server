@@ -2,25 +2,11 @@
 - name: Compute listener port sets
   ansible.builtin.set_fact:
     stalwart_open_ports: >-
-      {{ (stalwart_smtp_enabled | ternary([stalwart_smtp_port], []))
-       + (stalwart_submission_enabled | ternary([stalwart_submission_port], []))
-       + (stalwart_submissions_enabled | ternary([stalwart_submissions_port], []))
-       + (stalwart_imap_enabled | ternary([stalwart_imap_port], []))
-       + (stalwart_imaps_enabled | ternary([stalwart_imaps_port], []))
-       + (stalwart_pop3_enabled | ternary([stalwart_pop3_port, stalwart_pop3s_port], []))
-       + (stalwart_managesieve_enabled | ternary([stalwart_managesieve_port], []))
-       + (stalwart_https_enabled | ternary([stalwart_https_port], []))
-       + (stalwart_http_enabled | ternary([stalwart_http_port], [])) }}
+      {{ stalwart_listeners | selectattr('enabled')
+         | map(attribute='port') | unique | list }}
     stalwart_closed_ports: >-
-      {{ (stalwart_smtp_enabled | ternary([], [stalwart_smtp_port]))
-       + (stalwart_submission_enabled | ternary([], [stalwart_submission_port]))
-       + (stalwart_submissions_enabled | ternary([], [stalwart_submissions_port]))
-       + (stalwart_imap_enabled | ternary([], [stalwart_imap_port]))
-       + (stalwart_imaps_enabled | ternary([], [stalwart_imaps_port]))
-       + (stalwart_pop3_enabled | ternary([], [stalwart_pop3_port, stalwart_pop3s_port]))
-       + (stalwart_managesieve_enabled | ternary([], [stalwart_managesieve_port]))
-       + (stalwart_https_enabled | ternary([], [stalwart_https_port]))
-       + (stalwart_http_enabled | ternary([], [stalwart_http_port])) }}
+      {{ stalwart_listeners | rejectattr('enabled')
+         | map(attribute='port') | unique | list }}
 
 - name: Install firewall packages
   ansible.builtin.package:

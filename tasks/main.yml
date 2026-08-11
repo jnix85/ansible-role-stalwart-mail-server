@@ -11,6 +11,11 @@
   ansible.builtin.import_tasks: install.yml
   tags: [stalwart, stalwart_install]
 
+- name: Install stalwart-cli
+  ansible.builtin.import_tasks: cli.yml
+  when: stalwart_cli_install | bool
+  tags: [stalwart, stalwart_cli]
+
 - name: Generate self-signed certificate
   ansible.builtin.import_tasks: tls_selfsigned.yml
   when: stalwart_tls_mode == 'selfsigned'

@@ -1,0 +1,100 @@
+---
+- name: Check installed stalwart-cli version
+  ansible.builtin.command: "{{ stalwart_install_dir }}/bin/stalwart-cli --version"
+  register: stalwart_cli_version_check
+  changed_when: false
+  failed_when: false
+
+- name: Set installed CLI version fact
+  ansible.builtin.set_fact:
+    stalwart_cli_installed_version: >-
+      {{ (stalwart_cli_version_check.stdout | default('')) | regex_search('\d+\.\d+\.\d+') or 'absent' }}
+
+- name: Download and install stalwart-cli {{ stalwart_version }}
+  when: stalwart_cli_installed_version != stalwart_version
+  block:
+    - name: Use explicit CLI download URL override
+      ansible.builtin.set_fact:
+        stalwart_cli_effective_download_url: "{{ stalwart_cli_download_url }}"
+      when: stalwart_cli_download_url | length > 0
+
+    - name: Probe candidate CLI download URLs
+      ansible.builtin.uri:
+        url: "{{ item }}"
+        method: HEAD
+        follow_redirects: all
+      register: stalwart_cli_url_probe
+      failed_when: false
+      check_mode: false
+      loop: "{{ stalwart_cli_download_urls }}"
+      when: stalwart_cli_download_url | length == 0
+
+    - name: Select first reachable CLI download URL
+      ansible.builtin.set_fact:
+        stalwart_cli_effective_download_url: >-
+          {{ stalwart_cli_url_probe.results
+             | selectattr('status', 'defined')
+             | selectattr('status', 'equalto', 200)
+             | map(attribute='item') | list
+             | first | default('') }}
+      when: stalwart_cli_download_url | length == 0
+
+    - name: Assert a CLI download URL is reachable
+      ansible.builtin.assert:
+        that:
+          - stalwart_cli_effective_download_url | length > 0
+        fail_msg: >-
+          No stalwart-cli release asset found for version {{ stalwart_version }}.
+          Tried: {{ stalwart_cli_download_urls | join(', ') }}.
+          Check the release assets on GitHub and set stalwart_cli_download_url.
+      when: stalwart_cli_download_url | length == 0
+
+    - name: Download CLI tarball
+      ansible.builtin.get_url:
+        url: "{{ stalwart_cli_effective_download_url }}"
+        dest: "/tmp/stalwart-cli-{{ stalwart_version }}.tar.gz"
+        mode: "0644"
+
+    - name: Create CLI extraction directory
+      ansible.builtin.file:
+        path: "/tmp/stalwart-cli-{{ stalwart_version }}"
+        state: directory
+        mode: "0755"
+
+    - name: Extract CLI tarball
+      ansible.builtin.unarchive:
+        src: "/tmp/stalwart-cli-{{ stalwart_version }}.tar.gz"
+        dest: "/tmp/stalwart-cli-{{ stalwart_version }}"
+        remote_src: true
+
+    - name: Locate CLI binary in extracted archive
+      ansible.builtin.find:
+        paths: "/tmp/stalwart-cli-{{ stalwart_version }}"
+        patterns:
+          - stalwart-cli
+        file_type: file
+        recurse: true
+      register: stalwart_cli_binary_find
+
+    - name: Assert the CLI binary was found
+      ansible.builtin.assert:
+        that:
+          - stalwart_cli_binary_find.files | length > 0
+        fail_msg: No stalwart-cli binary found in the extracted archive.
+
+    - name: Install stalwart-cli binary
+      ansible.builtin.copy:
+        src: "{{ (stalwart_cli_binary_find.files | first).path }}"
+        dest: "{{ stalwart_install_dir }}/bin/stalwart-cli"
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Clean up CLI download artifacts
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "/tmp/stalwart-cli-{{ stalwart_version }}.tar.gz"
+        - "/tmp/stalwart-cli-{{ stalwart_version }}"
