@@ -1,0 +1,5 @@
+---
+# Top-level entry point: run everything.
+#   ansible-playbook site.yml --ask-vault-pass
+- name: Deploy mail infrastructure
+  ansible.builtin.import_playbook: playbooks/mailserver.yml

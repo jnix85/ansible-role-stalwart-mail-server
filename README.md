@@ -44,8 +44,11 @@ ansible-galaxy role install \
   git+https://github.com/jnix85/ansible-role-stalwart-mail-server.git,main,jnix85.stalwart_mail_server
 ```
 
-Ready-to-run playbook and inventory templates live in
-[`examples/`](examples/). Minimal playbook:
+The repository root **is** the role (standard Galaxy layout), so the
+command above installs it directly from git. A complete, copyable project
+layout — `site.yml`, `playbooks/`, `inventory/hosts.yml`, and
+`group_vars` with a vault split — lives in [`examples/`](examples/).
+Minimal playbook:
 
 ```yaml
 - hosts: mailservers

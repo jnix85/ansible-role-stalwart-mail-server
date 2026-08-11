@@ -1,0 +1,6 @@
+---
+# Copy to vault.yml, set a real password, then encrypt it:
+#   cp vault.yml.example vault.yml
+#   $EDITOR vault.yml
+#   ansible-vault encrypt vault.yml
+vault_stalwart_admin_password: change-me-to-a-long-random-password

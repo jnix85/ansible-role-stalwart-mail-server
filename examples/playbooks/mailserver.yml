@@ -1,0 +1,8 @@
+---
+# All Stalwart settings live in inventory/group_vars/mailservers/ —
+# this playbook only binds the role to the group.
+- name: Deploy Stalwart mail server
+  hosts: mailservers
+  become: true
+  roles:
+    - role: jnix85.stalwart_mail_server
