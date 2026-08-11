@@ -26,7 +26,9 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectHome=true
 ProtectSystem=strict
-ReadWritePaths={{ stalwart_install_dir }}
+ReadWritePaths={{ ([stalwart_install_dir, stalwart_data_dir, stalwart_log_dir]
+  + ([stalwart_selfsigned_dir] if stalwart_tls_mode == 'selfsigned' else []))
+  | unique | join(' ') }}
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true

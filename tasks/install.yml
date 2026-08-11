@@ -46,11 +46,12 @@
 - name: Download and install Stalwart {{ stalwart_version }}
   when: stalwart_installed_version != stalwart_version
   block:
-    - name: Build candidate download URL list
+    # An explicit stalwart_download_url is used directly, without probing
+    # (mirrors may reject HEAD requests).
+    - name: Use explicit download URL override
       ansible.builtin.set_fact:
-        stalwart_url_candidates: >-
-          {{ [stalwart_download_url] if stalwart_download_url | length > 0
-             else stalwart_download_urls }}
+        stalwart_effective_download_url: "{{ stalwart_download_url }}"
+      when: stalwart_download_url | length > 0
 
     - name: Probe candidate download URLs
       ansible.builtin.uri:
@@ -59,7 +60,9 @@
         follow_redirects: all
       register: stalwart_url_probe
       failed_when: false
-      loop: "{{ stalwart_url_candidates }}"
+      check_mode: false
+      loop: "{{ stalwart_download_urls }}"
+      when: stalwart_download_url | length == 0
 
     - name: Select first reachable download URL
       ansible.builtin.set_fact:
@@ -69,6 +72,7 @@
              | selectattr('status', 'equalto', 200)
              | map(attribute='item') | list
              | first | default('') }}
+      when: stalwart_download_url | length == 0
 
     - name: Assert a download URL is reachable
       ansible.builtin.assert:
@@ -76,8 +80,9 @@
           - stalwart_effective_download_url | length > 0
         fail_msg: >-
           No Stalwart release asset found for version {{ stalwart_version }}.
-          Tried: {{ stalwart_url_candidates | join(', ') }}.
+          Tried: {{ stalwart_download_urls | join(', ') }}.
           Check the release assets on GitHub and set stalwart_download_url.
+      when: stalwart_download_url | length == 0
 
     - name: Download release tarball
       ansible.builtin.get_url:

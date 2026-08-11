@@ -1,11 +1,11 @@
 ---
-- name: Load OS family specific variables
-  ansible.builtin.include_vars: "{{ ansible_os_family }}.yml"
-  tags: [stalwart, always]
-
 - name: Validate role configuration
   ansible.builtin.import_tasks: preflight.yml
   tags: [stalwart, stalwart_preflight]
+
+- name: Load OS family specific variables
+  ansible.builtin.include_vars: "{{ ansible_os_family }}.yml"
+  tags: [stalwart, always]
 
 - name: Install Stalwart
   ansible.builtin.import_tasks: install.yml

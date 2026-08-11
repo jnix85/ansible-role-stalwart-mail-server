@@ -32,11 +32,18 @@
       - stalwart_acme_domains | length > 0
       - stalwart_acme_contact | length > 0
       - stalwart_acme_challenge in ['tls-alpn-01', 'http-01', 'dns-01']
-      - not (stalwart_acme_challenge == 'tls-alpn-01' and not stalwart_https_enabled)
+      - >-
+        not (stalwart_acme_challenge == 'tls-alpn-01'
+             and not (stalwart_https_enabled and stalwart_https_port | int == 443))
+      - >-
+        not (stalwart_acme_challenge == 'http-01'
+             and not (stalwart_http_enabled and stalwart_http_port | int == 80))
     fail_msg: >-
       ACME mode needs stalwart_acme_domains, stalwart_acme_contact and a valid
-      challenge type; tls-alpn-01 additionally requires the HTTPS listener
-      (stalwart_https_enabled) on port 443.
+      challenge type. Let's Encrypt validates tls-alpn-01 only on port 443
+      (requires stalwart_https_enabled with stalwart_https_port 443) and
+      http-01 only on port 80 (requires stalwart_http_enabled with
+      stalwart_http_port 80).
   when: stalwart_tls_mode == 'acme'
 
 - name: Assert certificate file settings

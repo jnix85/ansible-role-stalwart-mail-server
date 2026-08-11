@@ -9,7 +9,8 @@ user.
 
 ## Features
 
-- **Debian/Ubuntu and RHEL/Rocky/Alma (EL9)** support
+- **Debian 13 and Ubuntu 24.04/26.04** support (the primary, CI-tested
+  targets; RHEL-family code paths exist but are currently untested)
 - **Native binary install** to `/opt/stalwart`, version-pinned and upgradeable
   by bumping `stalwart_version`
 - **Configurable TLS**: Stalwart's built-in ACME (Let's Encrypt), existing
@@ -28,8 +29,9 @@ user.
 
 - Ansible **2.15+** on the controller
 - A systemd-based target on `x86_64` or `aarch64`
-- Collections `community.general` and `ansible.posix` (only when
-  `stalwart_manage_firewall: true`) — see `requirements.yml`
+- Collections (see `requirements.yml`): `community.crypto` (only for
+  `stalwart_tls_mode: selfsigned`), `community.general` and `ansible.posix`
+  (only when `stalwart_manage_firewall: true`)
 - Outbound HTTPS from the target to `github.com` (or override
   `stalwart_download_url` to point at an internal mirror)
 
@@ -107,6 +109,11 @@ Defaults live in [`defaults/main.yml`](defaults/main.yml). The important ones:
 
 ### Listeners
 
+`stalwart_listen_address` defaults to `auto`: dual-stack `[::]` when the host
+has IPv6, `0.0.0.0` when IPv6 is disabled (e.g. booted with `ipv6.disable=1`).
+Set it explicitly to pin a specific bind address — and set
+`stalwart_smoke_test_host` to match if it isn't a wildcard.
+
 Each protocol has an `_enabled` toggle and a `_port` variable:
 
 | Toggle | Default | Port(s) |
@@ -124,16 +131,20 @@ Each protocol has an `_enabled` toggle and a `_port` variable:
 ### Firewall
 
 `stalwart_manage_firewall: false` by default. When enabled, the role opens the
-enabled listener ports via **ufw** (Debian family) or **firewalld** (RedHat
-family). It deliberately does **not** run `ufw enable` — activating a firewall
-with a default-deny policy could cut off your SSH session. Enable ufw yourself
-after allowing SSH.
+enabled listener ports — and removes rules for listeners you've toggled off —
+via **ufw** (Debian family) or **firewalld** (RedHat family). It deliberately
+never activates a firewall itself (no `ufw enable`, no starting/enabling
+firewalld): switching on a default-deny firewall could cut off your SSH
+session. If firewalld isn't running, rules are written permanent-only and take
+effect if you start it.
 
 ### Everything else
 
 - `stalwart_smoke_test` (default `true`): after deployment the role verifies
   the service is active, enabled listeners accept connections, and
-  `/healthz/live` returns 200 — so a green play means a working server.
+  `/healthz/live` returns 200 — so a green play means a working server. Set
+  `stalwart_smoke_test_host` if `stalwart_listen_address` binds a specific
+  address instead of a wildcard.
 - `stalwart_extra_config` accepts raw TOML appended verbatim to
   `config.toml` for any local setting the role doesn't model.
 
@@ -171,8 +182,8 @@ The role sets up the server; deliverability needs DNS:
 ```sh
 pip install ansible-core molecule molecule-plugins[docker] docker ansible-lint yamllint
 ansible-galaxy collection install -r requirements.yml
-molecule test                       # Debian 12 (default)
-MOLECULE_DISTRO=rockylinux9 molecule test
+molecule test                       # Debian 13 (default)
+MOLECULE_DISTRO=ubuntu2404 molecule test
 ```
 
 Note: Molecule resolves the role by its Galaxy name, so clone this repository
@@ -180,8 +191,8 @@ into a directory named `jnix85.stalwart_mail_server` (CircleCI does this
 automatically).
 
 CI runs on [CircleCI](https://circleci.com): a lint job (yamllint +
-ansible-lint) gates a Molecule matrix across Debian 12, Rocky Linux 9 and
-Ubuntu 24.04.
+ansible-lint) gates a Molecule matrix across Debian 13, Ubuntu 24.04 and
+Ubuntu 26.04.
 
 ## License
 

@@ -19,20 +19,20 @@
 - name: Wait for SMTP listener
   ansible.builtin.wait_for:
     port: "{{ stalwart_smtp_port }}"
-    host: 127.0.0.1
+    host: "{{ stalwart_smoke_test_host }}"
     timeout: 60
   when: stalwart_smtp_enabled | bool
 
 - name: Wait for IMAP listener
   ansible.builtin.wait_for:
     port: "{{ stalwart_imap_port }}"
-    host: 127.0.0.1
+    host: "{{ stalwart_smoke_test_host }}"
     timeout: 30
   when: stalwart_imap_enabled | bool
 
 - name: Check HTTP health endpoint
   ansible.builtin.uri:
-    url: "https://127.0.0.1:{{ stalwart_https_port }}/healthz/live"
+    url: "https://{{ stalwart_smoke_test_host }}:{{ stalwart_https_port }}/healthz/live"
     validate_certs: false
     status_code: 200
   register: stalwart_smoke_health

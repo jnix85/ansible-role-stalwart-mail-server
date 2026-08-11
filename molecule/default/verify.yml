@@ -2,6 +2,9 @@
 - name: Verify
   hosts: all
   become: true
+  vars_files:
+    # Assert against the role's own defaults instead of duplicating them.
+    - ../../defaults/main.yml
   tasks:
     - name: Gather service facts
       ansible.builtin.service_facts:
@@ -15,19 +18,19 @@
 
     - name: Wait for SMTP listener
       ansible.builtin.wait_for:
-        port: 25
+        port: "{{ stalwart_smtp_port }}"
         host: 127.0.0.1
         timeout: 60
 
     - name: Wait for IMAP listener
       ansible.builtin.wait_for:
-        port: 143
+        port: "{{ stalwart_imap_port }}"
         host: 127.0.0.1
         timeout: 30
 
     - name: Check HTTPS health endpoint
       ansible.builtin.uri:
-        url: https://127.0.0.1:443/healthz/live
+        url: "https://127.0.0.1:{{ stalwart_https_port }}/healthz/live"
         validate_certs: false
         status_code: 200
       register: health_result
@@ -36,11 +39,11 @@
       until: health_result.status == 200
 
     - name: Check installed binary version
-      ansible.builtin.command: /opt/stalwart/bin/stalwart --version
+      ansible.builtin.command: "{{ stalwart_install_dir }}/bin/stalwart --version"
       register: version_result
       changed_when: false
 
     - name: Assert expected version is installed
       ansible.builtin.assert:
         that:
-          - "'0.16.9' in version_result.stdout"
+          - stalwart_version in version_result.stdout
