@@ -17,4 +17,5 @@ all:
         ${name}.${domain}:
           ansible_host: ${host.public_ip}
           private_ip: ${host.private_ip}
+          data_disk_lun: ${host.data_disk_lun}
 %{ endfor ~}

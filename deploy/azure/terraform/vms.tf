@@ -48,16 +48,18 @@ resource "azurerm_linux_virtual_machine" "vm" {
     public_key = var.ssh_public_key
   }
 
+  # Minimum viable OS disk on both tiers — the mail store is a separate
+  # managed disk (see disks.tf), so nothing here needs to grow.
   os_disk {
     caching              = "ReadWrite"
-    storage_account_type = "StandardSSD_LRS"
-    disk_size_gb         = each.value.tier == "mailbox" ? var.mail_os_disk_gb : 32
+    storage_account_type = var.os_disk_type
+    disk_size_gb         = var.os_disk_gb
   }
 
   source_image_reference {
     publisher = "Canonical"
     offer     = "ubuntu-24_04-lts"
-    sku       = "server"
+    sku       = local.image_sku
     version   = "latest"
   }
 }

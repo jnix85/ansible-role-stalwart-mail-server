@@ -8,6 +8,11 @@ output "mailbox_public_ip" {
   value       = { for name in local.mailbox_names : name => azurerm_public_ip.vm[name].ip_address }
 }
 
+output "data_disk_lun" {
+  description = "LUN the mail-store disk is attached at on the mailbox VM. Ansible resolves the block device as /dev/disk/azure/scsi1/lun<LUN>, which is stable across reboots unlike /dev/sd*."
+  value       = local.data_disk_lun
+}
+
 output "ansible_inventory_path" {
   description = "Generated inventory consumed by ../ansible."
   value       = local_file.ansible_inventory.filename
@@ -28,10 +33,14 @@ resource "local_file" "ansible_inventory" {
         private_ip = azurerm_network_interface.vm[name].private_ip_address
       }
     }
+    # Reading the lun off the attachment (not the local) also orders inventory
+    # rendering after the disk is actually attached, and keeps Ansible from
+    # hardcoding where the mail store shows up.
     mailbox_hosts = {
       for name in local.mailbox_names : name => {
-        public_ip  = azurerm_public_ip.vm[name].ip_address
-        private_ip = azurerm_network_interface.vm[name].private_ip_address
+        public_ip     = azurerm_public_ip.vm[name].ip_address
+        private_ip    = azurerm_network_interface.vm[name].private_ip_address
+        data_disk_lun = azurerm_virtual_machine_data_disk_attachment.data[name].lun
       }
     }
   })
