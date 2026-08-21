@@ -1,6 +1,25 @@
 ---
 version: 2.1
 
+# Shared setup, so the diagnostic jobs below run byte-identical steps to
+# the real molecule job and cannot drift from it.
+commands:
+  setup_python:
+    steps:
+      - run:
+          name: Install test dependencies
+          # A venv sidesteps PEP 668 (externally-managed system Python).
+          command: |
+            python3 -m venv ~/venv
+            ~/venv/bin/pip install --upgrade pip
+            ~/venv/bin/pip install ansible-core molecule 'molecule-plugins[docker]' docker
+            echo 'export PATH="$HOME/venv/bin:$PATH"' >> "$BASH_ENV"
+  install_collections:
+    steps:
+      - run:
+          name: Install collection dependencies
+          command: ansible-galaxy collection install -r requirements.yml
+
 jobs:
   lint:
     docker:
@@ -39,20 +58,71 @@ jobs:
       MOLECULE_DISTRO: << parameters.distro >>
     steps:
       - checkout
-      - run:
-          name: Install test dependencies
-          # A venv sidesteps PEP 668 (externally-managed system Python).
-          command: |
-            python3 -m venv ~/venv
-            ~/venv/bin/pip install --upgrade pip
-            ~/venv/bin/pip install ansible-core molecule 'molecule-plugins[docker]' docker
-            echo 'export PATH="$HOME/venv/bin:$PATH"' >> "$BASH_ENV"
-      - run:
-          name: Install collection dependencies
-          command: ansible-galaxy collection install -r requirements.yml
+      - setup_python
+      - install_collections
       - run:
           name: Run Molecule tests
           command: molecule test
+
+  # TEMPORARY diagnostics. The molecule matrix fails identically on every
+  # distro and this environment cannot reach circleci.com to read job
+  # logs, so these jobs stage the pipeline and let the pass/fail pattern
+  # of their commit statuses localize the failure. Delete once the cause
+  # is known.
+  diag:
+    parameters:
+      stage:
+        type: string
+    machine:
+      image: ubuntu-2404:current
+    resource_class: medium
+    working_directory: ~/jnix85.stalwart_mail_server
+    environment:
+      MOLECULE_DISTRO: debian13
+    steps:
+      - checkout
+      - setup_python
+      - run:
+          name: Report toolchain versions
+          # Reporting must not decide the job's outcome, or a docker
+          # hiccup would read as a broken install.
+          command: |
+            python3 --version || true
+            docker --version || true
+            docker info 2>&1 | head -20 || true
+            molecule --version
+      - when:
+          condition:
+            not:
+              equal: ["<< parameters.stage >>", "setup"]
+          steps:
+            - install_collections
+            - run:
+                name: List installed collections
+                command: ansible-galaxy collection list
+      - when:
+          condition:
+            or:
+              - equal: ["<< parameters.stage >>", "create"]
+              - equal: ["<< parameters.stage >>", "converge"]
+          steps:
+            - run:
+                name: Molecule create
+                command: molecule create
+            - run:
+                name: Show container state
+                command: docker ps -a
+      - when:
+          condition:
+            equal: ["<< parameters.stage >>", "converge"]
+          steps:
+            - run:
+                name: Molecule converge
+                command: molecule converge
+      - run:
+          name: Molecule destroy
+          command: molecule destroy || true
+          when: always
 
 workflows:
   ci:
@@ -67,3 +137,16 @@ workflows:
                 - debian13
                 - ubuntu2404
                 - ubuntu2604
+      # TEMPORARY: see the diag job. Each stage reports its own commit
+      # status, so the first stage that goes red is the failing step.
+      - diag:
+          name: diag-<< matrix.stage >>
+          requires:
+            - lint
+          matrix:
+            parameters:
+              stage:
+                - setup
+                - collections
+                - create
+                - converge
