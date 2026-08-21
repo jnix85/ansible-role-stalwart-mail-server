@@ -82,43 +82,39 @@ jobs:
     steps:
       - checkout
       - setup_python
+      - install_collections
       - run:
-          name: Report toolchain versions
-          # Reporting must not decide the job's outcome, or a docker
-          # hiccup would read as a broken install.
+          name: Molecule create
+          command: molecule create
+      - run:
+          name: Converge up to the stage under test
+          # Round one proved setup, collections and create all pass and
+          # that a full converge fails, so this splits converge by role
+          # phase. include_vars carries the "always" tag, so it still
+          # runs under every --tags subset.
           command: |
-            python3 --version || true
-            docker --version || true
-            docker info 2>&1 | head -20 || true
-            molecule --version
+            BASE=stalwart_preflight,stalwart_install
+            CONF=$BASE,stalwart_tls,stalwart_configure
+            case "<< parameters.stage >>" in
+              install) TAGS=$BASE ;;
+              config)  TAGS=$CONF ;;
+              *)       TAGS=$CONF,stalwart_service ;;
+            esac
+            echo "converging with tags: $TAGS"
+            molecule converge -- --tags "$TAGS"
       - when:
           condition:
-            not:
-              equal: ["<< parameters.stage >>", "setup"]
-          steps:
-            - install_collections
-            - run:
-                name: List installed collections
-                command: ansible-galaxy collection list
-      - when:
-          condition:
-            or:
-              - equal: ["<< parameters.stage >>", "create"]
-              - equal: ["<< parameters.stage >>", "converge"]
+            equal: ["<< parameters.stage >>", "active"]
           steps:
             - run:
-                name: Molecule create
-                command: molecule create
-            - run:
-                name: Show container state
-                command: docker ps -a
-      - when:
-          condition:
-            equal: ["<< parameters.stage >>", "converge"]
-          steps:
-            - run:
-                name: Molecule converge
-                command: molecule converge
+                name: Assert the service actually started
+                # Distinguishes "the role's tasks succeed but the daemon
+                # never runs" from "the daemon runs and only the smoke
+                # test's probes fail".
+                command: |
+                  docker ps -a
+                  CID=$(docker ps -q --filter name=stalwart-instance | head -1)
+                  docker exec "$CID" systemctl is-active stalwart
       - run:
           name: Molecule destroy
           command: molecule destroy || true
@@ -146,7 +142,7 @@ workflows:
           matrix:
             parameters:
               stage:
-                - setup
-                - collections
-                - create
-                - converge
+                - install
+                - config
+                - service
+                - active
