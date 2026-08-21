@@ -1,23 +1,13 @@
 ---
 stalwart_hostname: "{{ inventory_hostname }}"
+stalwart_public_url: "https://{{ inventory_hostname }}"
 stalwart_admin_password: "{{ vault_stalwart_admin_password }}"
-
-# Let's Encrypt via tls-alpn-01 on 443 (the NSG leaves 443 open).
-stalwart_tls_mode: acme
-stalwart_acme_contact: "{{ acme_contact }}"
-stalwart_acme_domains:
-  - "{{ inventory_hostname }}"
 
 stalwart_storage_backend: rocksdb
 
-# Off deliberately: upstream ships no separate stalwart-cli asset for
-# 0.16.x (the server binary carries the admin commands), so enabling this
-# would fail the install. See the role README.
-stalwart_cli_install: false
-
 # All mail lives on the attached Azure managed data disk, not the OS disk.
 # The mailbox playbook formats and mounts the disk at this path before the
-# role runs; the role's systemd unit already lists stalwart_data_dir in
+# role runs; the role's systemd unit lists stalwart_data_dir in
 # ReadWritePaths, so pointing it at the mount is supported.
 stalwart_data_mount: /var/lib/stalwart
 stalwart_data_dir: "{{ stalwart_data_mount }}"
@@ -26,18 +16,9 @@ stalwart_data_dir: "{{ stalwart_data_mount }}"
 # avoid double management. Flip on if you prefer defense in depth.
 stalwart_manage_firewall: false
 
-# Raw TOML appended verbatim to the Stalwart configuration. Deliberately
-# left as comments only: the stanza and keys that mark the MX edges as
-# trusted inbound relays differ between Stalwart versions, and guessing
-# them here would ship a config that either fails to parse or silently
-# does nothing. Verify the relay/trust settings against the Stalwart docs
-# for the version actually installed — this is best configured in the
-# Stalwart web admin UI, then mirrored here once the syntax is confirmed.
-#
-# The MX edge private IPs to allow-list are available in the inventory as
+# TLS certificates, the mail domain, accounts, and the trust settings
+# that let the MX edges relay inbound mail are all configured in the
+# Stalwart web admin after the first deploy. Stalwart 0.16 keeps them in
+# its data store, so there is nothing to template here. The MX edge
+# private IPs to allow-list are in the inventory as
 # hostvars[<mx host>].private_ip for each host in groups['mx_edges'].
-stalwart_extra_config: |
-  # PLACEHOLDER — no extra configuration is applied.
-  #
-  # TODO: allow-list the MX edge private IPs as trusted inbound relays,
-  # using the stanza documented for the installed Stalwart version.

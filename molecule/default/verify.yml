@@ -16,17 +16,12 @@
           - ansible_facts.services['stalwart.service'].state == 'running'
           - ansible_facts.services['stalwart.service'].status == 'enabled'
 
-    - name: Wait for SMTP listener
+    - name: Wait for the expected listeners
       ansible.builtin.wait_for:
-        port: "{{ stalwart_smtp_port }}"
+        port: "{{ item }}"
         host: 127.0.0.1
         timeout: 60
-
-    - name: Wait for IMAP listener
-      ansible.builtin.wait_for:
-        port: "{{ stalwart_imap_port }}"
-        host: 127.0.0.1
-        timeout: 30
+      loop: "{{ stalwart_expected_ports }}"
 
     - name: Check HTTPS health endpoint
       ansible.builtin.uri:
@@ -37,6 +32,17 @@
       retries: 5
       delay: 5
       until: health_result.status == 200
+
+    - name: Read the data store descriptor
+      ansible.builtin.slurp:
+        src: "{{ stalwart_config_file }}"
+      register: stalwart_descriptor_raw
+
+    - name: Assert the descriptor names the configured backend
+      ansible.builtin.assert:
+        that:
+          - (stalwart_descriptor_raw.content | b64decode | from_json)['@type']
+            == stalwart_store_types[stalwart_storage_backend]
 
     - name: Check installed binary version
       ansible.builtin.command: "{{ stalwart_install_dir }}/bin/stalwart --version"

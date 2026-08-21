@@ -19,7 +19,8 @@ stalwart_libc: gnu
 
 # Candidate download URLs, probed in order at install time; the first
 # one that responds is used. Upstream renamed its release assets from
-# stalwart-mail-* to stalwart-* over time, so both are covered.
+# stalwart-mail-* to stalwart-* over time, so both are covered. The
+# stalwart-* form is verified present for 0.16.9 on x86_64 and aarch64.
 stalwart_download_urls:
   - >-
     https://github.com/{{ stalwart_github_repo }}/releases/download/v{{ stalwart_version }}/stalwart-{{
@@ -32,14 +33,14 @@ stalwart_download_urls:
 # it is used directly and the candidate list above is ignored.
 stalwart_download_url: ""
 
-# Also install the stalwart-cli admin tool alongside the server.
+# Install a separate stalwart-cli binary. Upstream publishes no such
+# asset for 0.16.x (the server binary carries the admin commands), so
+# enabling this also requires stalwart_cli_download_url.
 stalwart_cli_install: false
 stalwart_cli_download_urls:
   - >-
     https://github.com/{{ stalwart_github_repo }}/releases/download/v{{ stalwart_version }}/stalwart-cli-{{
     stalwart_arch_map[ansible_architecture] | default(ansible_architecture) }}-unknown-linux-{{ stalwart_libc }}.tar.gz
-# Explicit override for the CLI tarball, same semantics as
-# stalwart_download_url.
 stalwart_cli_download_url: ""
 
 # Optional checksum for the downloaded tarball, e.g. "sha256:abcd...".
@@ -56,6 +57,12 @@ stalwart_service_name: stalwart
 stalwart_service_enabled: true
 stalwart_service_state: started
 
+# The file passed to `stalwart --config`. In 0.16 this is a JSON data
+# store descriptor, not a general configuration file: it tells the
+# server only how to reach its store. Everything else lives inside the
+# store and is managed from the web admin.
+stalwart_config_file: "{{ stalwart_install_dir }}/etc/config.json"
+
 # ------------------------------------------------------------------
 # Identity
 # ------------------------------------------------------------------
@@ -63,184 +70,95 @@ stalwart_service_state: started
 # Fully qualified hostname the server identifies as (EHLO, certs, ...).
 stalwart_hostname: "{{ ansible_fqdn }}"
 
-# ------------------------------------------------------------------
-# Administrator account (REQUIRED)
-# ------------------------------------------------------------------
+# Base URL the web admin and generated links use.
+stalwart_public_url: "https://{{ stalwart_hostname }}"
 
-stalwart_admin_user: admin
+# ------------------------------------------------------------------
+# Administrator bootstrap (REQUIRED)
+# ------------------------------------------------------------------
 
 # REQUIRED: supply via Ansible Vault. The role fails fast when unset.
-# Stored on the host only as a SHA512-crypt hash.
+# Passed to the service as STALWART_RECOVERY_ADMIN, which Stalwart uses
+# to create a temporary "recovery-admin" account for first login.
 stalwart_admin_password: ""
-
-# ------------------------------------------------------------------
-# TLS
-# ------------------------------------------------------------------
-
-# One of: acme | files | selfsigned
-#   acme       - Stalwart obtains certificates itself (Let's Encrypt).
-#   files      - use existing certificate/key files on the host.
-#   selfsigned - role generates a self-signed certificate (labs/testing).
-stalwart_tls_mode: selfsigned
-
-# --- acme ---
-stalwart_acme_directory_url: "https://acme-v02.api.letsencrypt.org/directory"
-# tls-alpn-01 requires port 443 to be reachable from the internet.
-stalwart_acme_challenge: tls-alpn-01
-stalwart_acme_contact: "postmaster@{{ stalwart_hostname }}"
-stalwart_acme_domains:
-  - "{{ stalwart_hostname }}"
-
-# --- files ---
-# Absolute paths on the managed host; must be readable by {{ stalwart_user }}.
-stalwart_tls_cert_file: ""
-stalwart_tls_key_file: ""
-
-# --- selfsigned ---
-stalwart_selfsigned_dir: "{{ stalwart_install_dir }}/etc/certs"
-stalwart_selfsigned_days: 3650
 
 # ------------------------------------------------------------------
 # Storage
 # ------------------------------------------------------------------
 
-# One of: rocksdb | sqlite | postgresql
+# One of the keys in stalwart_store_types below.
 stalwart_storage_backend: rocksdb
 
-stalwart_data_dir: "{{ stalwart_install_dir }}/data"
-stalwart_rocksdb_compression: lz4
+# Maps the friendly name to the "@type" discriminator the server
+# expects. 0.16.9 also names a FoundationDb variant, but the official
+# builds are not compiled with it, so it is deliberately absent here.
+stalwart_store_types:
+  rocksdb: RocksDb
+  sqlite: Sqlite
+  postgresql: PostgreSql
+  mysql: MySql
 
-# postgresql backend settings (the role does NOT install PostgreSQL).
-stalwart_postgresql_host: localhost
-stalwart_postgresql_port: 5432
-stalwart_postgresql_database: stalwart
-stalwart_postgresql_user: stalwart
-stalwart_postgresql_password: ""
-stalwart_postgresql_timeout: 15s
+# Mail store location for the file-backed backends.
+stalwart_data_dir: "{{ stalwart_install_dir }}/data"
+
+# Settings for the SQL backends (the role does NOT install a database).
+# Only rocksdb and sqlite are verified against the 0.16.9 binary; the
+# SQL field names below are best-effort. The server ignores unknown
+# fields rather than rejecting them, so a wrong name fails as a
+# connection error at startup. Use stalwart_store_descriptor to write
+# an exact descriptor of your own if you hit that.
+stalwart_db_host: localhost
+stalwart_db_port: 5432
+stalwart_db_name: stalwart
+stalwart_db_user: stalwart
+stalwart_db_password: ""
 
 # ------------------------------------------------------------------
 # Listeners
 # ------------------------------------------------------------------
+#
+# Stalwart 0.16 does not take listener configuration from a file: the
+# ports below are the ones a freshly bootstrapped server binds, and the
+# role uses them only to open the firewall and to verify the service is
+# healthy. Change the listeners in the web admin, then update this list
+# to match.
+stalwart_expected_ports:
+  - 25    # SMTP
+  - 443   # HTTPS: JMAP, API, web admin
+  - 465   # submissions (implicit TLS)
+  - 993   # IMAPS
+  - 995   # POP3S
+  - 4190  # ManageSieve
+  - 8080  # plain HTTP
 
-# Address to bind listeners on.
-#   auto      - "[::]" (all v6+v4, dual-stack) when the host has IPv6,
-#               "0.0.0.0" when IPv6 is disabled (e.g. ipv6.disable=1).
-#   "[::]", "0.0.0.0", or a specific address - used as-is.
-stalwart_listen_address: auto
-
-stalwart_smtp_enabled: true
-stalwart_smtp_port: 25
-
-stalwart_submission_enabled: true
-stalwart_submission_port: 587
-
-stalwart_submissions_enabled: true
-stalwart_submissions_port: 465
-
-stalwart_imap_enabled: true
-stalwart_imap_port: 143
-
-stalwart_imaps_enabled: true
-stalwart_imaps_port: 993
-
-stalwart_pop3_enabled: false
-stalwart_pop3_port: 110
-stalwart_pop3s_port: 995
-
-stalwart_managesieve_enabled: false
-stalwart_managesieve_port: 4190
-
-# HTTPS listener: JMAP, REST API and the web admin UI.
-stalwart_https_enabled: true
+# Port the smoke test's health check uses. Must be one of the above.
 stalwart_https_port: 443
-
-# Optional plaintext HTTP listener (behind a reverse proxy).
-stalwart_http_enabled: false
-stalwart_http_port: 8080
-
-# Single source of truth for listeners, derived from the toggles above.
-# The config template, firewall rules and smoke test all iterate this
-# list, so the definitions can never drift apart. Override it entirely
-# to add custom listeners (fields: name, protocol, enabled, port, and
-# optional tls_implicit).
-stalwart_listeners:
-  - name: smtp
-    protocol: smtp
-    enabled: "{{ stalwart_smtp_enabled }}"
-    port: "{{ stalwart_smtp_port }}"
-  - name: submission
-    protocol: smtp
-    enabled: "{{ stalwart_submission_enabled }}"
-    port: "{{ stalwart_submission_port }}"
-  - name: submissions
-    protocol: smtp
-    enabled: "{{ stalwart_submissions_enabled }}"
-    port: "{{ stalwart_submissions_port }}"
-    tls_implicit: true
-  - name: imap
-    protocol: imap
-    enabled: "{{ stalwart_imap_enabled }}"
-    port: "{{ stalwart_imap_port }}"
-  - name: imaptls
-    protocol: imap
-    enabled: "{{ stalwart_imaps_enabled }}"
-    port: "{{ stalwart_imaps_port }}"
-    tls_implicit: true
-  - name: pop3
-    protocol: pop3
-    enabled: "{{ stalwart_pop3_enabled }}"
-    port: "{{ stalwart_pop3_port }}"
-  - name: pop3s
-    protocol: pop3
-    enabled: "{{ stalwart_pop3_enabled }}"
-    port: "{{ stalwart_pop3s_port }}"
-    tls_implicit: true
-  - name: sieve
-    protocol: managesieve
-    enabled: "{{ stalwart_managesieve_enabled }}"
-    port: "{{ stalwart_managesieve_port }}"
-  - name: https
-    protocol: http
-    enabled: "{{ stalwart_https_enabled }}"
-    port: "{{ stalwart_https_port }}"
-    tls_implicit: true
-  - name: http
-    protocol: http
-    enabled: "{{ stalwart_http_enabled }}"
-    port: "{{ stalwart_http_port }}"
-
-# ------------------------------------------------------------------
-# Logging
-# ------------------------------------------------------------------
-
-stalwart_log_level: info
-stalwart_log_dir: "{{ stalwart_install_dir }}/logs"
-stalwart_log_rotate: daily
 
 # ------------------------------------------------------------------
 # Firewall (opt-in)
 # ------------------------------------------------------------------
 
-# When true, opens the enabled listener ports via ufw (Debian family)
-# or firewalld (RedHat family). The role never enables/activates the
-# firewall itself to avoid locking you out — see README.
+# The role never enables or activates a firewall itself, to avoid
+# locking you out of the host.
 stalwart_manage_firewall: false
 
 # ------------------------------------------------------------------
 # Post-install smoke test
 # ------------------------------------------------------------------
 
-# After deployment, verify the service is active, enabled listeners
-# accept connections, and the HTTP health endpoint responds.
+# Verifies the service is running, the expected ports accept
+# connections, and /healthz/live returns 200. This is what catches a
+# server that starts and then exits.
 stalwart_smoke_test: true
 
-# Address the smoke test connects to. Change this when
-# stalwart_listen_address binds a specific (non-wildcard) address.
+# Address the smoke test connects to.
 stalwart_smoke_test_host: 127.0.0.1
 
-# ------------------------------------------------------------------
-# Escape hatch
-# ------------------------------------------------------------------
+# Escape hatch: when set, this mapping is written verbatim as the data
+# store descriptor and the settings above are ignored. Use it for a
+# backend or field name the role does not model.
+stalwart_store_descriptor: {}
 
-# Raw TOML appended verbatim to the end of config.toml.
-stalwart_extra_config: ""
+# Bootstrap environment file read by the systemd unit. Holds the
+# admin password, so it is written 0640 root:{{ stalwart_group }}.
+stalwart_env_file: "{{ stalwart_install_dir }}/etc/stalwart.env"

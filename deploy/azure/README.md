@@ -310,18 +310,15 @@ which changes the records in the checklist above.
 
 Be aware of these — they are real gaps, not paperwork.
 
-1. **The Stalwart ↔ MX relay trust is not fully automated.** The mailbox host
-   must be told to accept relayed mail for `mail_domains` from the MX nodes'
-   private VNet IPs. `inventory/group_vars/mailservers/vars.yml` passes a
-   `stalwart_extra_config` block that records the MX private IPs, but the
-   authoritative directive names and structure for accepting relayed mail differ
-   between Stalwart releases. **Verify this against the Stalwart documentation
-   for the version you actually installed** (`stalwart_version` in the role
-   defaults), and expect to finish the configuration by hand. The Stalwart web
-   admin UI is the easiest place to do it: add the domain, then set the
-   trusted/relay sources and the outbound routing there. Until this is done,
-   inbound mail may be rejected at the final hop even though Postfix relays it
-   correctly.
+1. **The Stalwart ↔ MX relay trust is not automated.** The mailbox host must
+   be told to accept relayed mail for `mail_domains` from the MX nodes' private
+   VNet IPs. Stalwart 0.16 keeps that setting in its data store rather than in
+   a configuration file, so the role cannot template it: configure it in the
+   **web admin** at `https://<mailbox host>/` after the first deploy — add the
+   domain, then set the trusted relay sources and outbound routing. Until this
+   is done, inbound mail may be rejected at the final hop even though Postfix
+   relays it correctly. The MX private IPs are in the generated inventory as
+   `hostvars[<mx host>].private_ip` for each host in `groups['mx_edges']`.
 2. **Outbound routing is likewise not configured** — see the port 25 warning. If
    you use a smarthost, set it in Stalwart.
 3. **No end-to-end test is included.** After deploying, send a real message in

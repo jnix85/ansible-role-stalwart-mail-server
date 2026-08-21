@@ -3,29 +3,31 @@
 - name: Flush handlers before smoke test
   ansible.builtin.meta: flush_handlers
 
+# Stalwart can exit moments after systemd reports a successful start
+# (a bad data store descriptor does exactly that), so re-read the
+# service state rather than trusting the start task.
 - name: Gather service facts
   ansible.builtin.service_facts:
 
-- name: Verify service is running
+- name: Verify the service is running
   ansible.builtin.assert:
     that:
       - (stalwart_service_name ~ '.service') in ansible_facts.services
       - ansible_facts.services[stalwart_service_name ~ '.service'].state == 'running'
     fail_msg: >-
       {{ stalwart_service_name }} is not running — check
-      'journalctl -u {{ stalwart_service_name }}' on the host
-      (a config.toml error is the most common cause).
+      'journalctl -u {{ stalwart_service_name }}' on the host. A data
+      store descriptor the server cannot use is the usual cause: it
+      exits immediately after systemd has already reported a start.
 
-- name: Wait for enabled listeners
+- name: Wait for the expected listeners
   ansible.builtin.wait_for:
-    port: "{{ item.port }}"
+    port: "{{ item }}"
     host: "{{ stalwart_smoke_test_host }}"
     timeout: 60
-  loop: "{{ stalwart_listeners | selectattr('enabled') | list }}"
-  loop_control:
-    label: "{{ item.name }}:{{ item.port }}"
+  loop: "{{ stalwart_expected_ports }}"
 
-- name: Check HTTP health endpoint
+- name: Check the HTTP health endpoint
   ansible.builtin.uri:
     url: "https://{{ stalwart_smoke_test_host }}:{{ stalwart_https_port }}/healthz/live"
     validate_certs: false
@@ -34,4 +36,3 @@
   retries: 5
   delay: 5
   until: stalwart_smoke_health.status == 200
-  when: stalwart_https_enabled | bool

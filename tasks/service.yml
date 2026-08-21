@@ -1,4 +1,16 @@
 ---
+# Written before the unit so the service never starts without the
+# bootstrap environment it references.
+- name: Install bootstrap environment file
+  ansible.builtin.template:
+    src: stalwart.env.j2
+    dest: "{{ stalwart_env_file }}"
+    owner: root
+    group: "{{ stalwart_group }}"
+    mode: "0640"
+  no_log: true
+  notify: Restart stalwart
+
 - name: Install systemd unit
   ansible.builtin.template:
     src: stalwart.service.j2

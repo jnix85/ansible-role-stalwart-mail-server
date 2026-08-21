@@ -48,5 +48,6 @@ verifies the service, listeners, and health endpoint). Then open
 `https://<your-host>` and log in as `admin` to add domains and accounts;
 Stalwart shows the exact SPF/DKIM/DMARC DNS records to publish.
 
-For a lab box without public DNS, set `stalwart_tls_mode: selfsigned`
-in `vars.yml` and drop the `stalwart_acme_*` lines.
+Stalwart 0.16 keeps TLS, domains, accounts and listeners in its data
+store rather than a config file, so those are set in the web admin after
+the first run — there is nothing to change in `vars.yml` for a lab box.
