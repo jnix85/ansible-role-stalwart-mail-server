@@ -1,0 +1,6 @@
+# {{ ansible_managed }}
+# Everything we accept is handed to the Stalwart mailbox server over
+# the VNet (private IP, no MX lookup).
+{% for domain in mail_domains %}
+{{ domain }} smtp:[{{ mailbox_private_ip }}]:25
+{% endfor %}

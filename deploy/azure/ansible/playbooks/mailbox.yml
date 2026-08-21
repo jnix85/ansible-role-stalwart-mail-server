@@ -1,0 +1,92 @@
+---
+# The Stalwart mailbox server: full stack minus public port 25 (inbound
+# mail arrives via the MX edges over the VNet; the NSG enforces this).
+- name: Deploy Stalwart mailbox server
+  hosts: mailservers
+  become: true
+
+  vars:
+    # Azure exposes every attached data disk under a stable, udev-managed
+    # path keyed by its LUN. The kernel name (/dev/sdc, ...) is assigned in
+    # device-discovery order and can change across reboots or reattaches,
+    # so the LUN path is the only safe way to name the disk.
+    stalwart_data_disk_lun_path: "/dev/disk/azure/scsi1/lun{{ data_disk_lun | default(0) }}"
+
+  pre_tasks:
+    # The managed data disk has to be formatted and mounted before the role
+    # runs: the role creates its directory tree under stalwart_data_dir, and
+    # mounting afterwards would hide anything already written there.
+    # The whole block is optional so the play still converges on a host with
+    # no data disk attached (the role then falls back to the OS disk).
+    - name: Prepare the Azure managed data disk
+      when: data_disk_lun is defined
+      block:
+        - name: Look up the Azure data disk by LUN
+          ansible.builtin.stat:
+            path: "{{ stalwart_data_disk_lun_path }}"
+            follow: false
+          register: stalwart_data_disk_link
+
+        - name: Set up the data disk when it is actually attached
+          when: stalwart_data_disk_link.stat.exists
+          block:
+            # stat resolves the udev symlink for us; lnk_source is the real
+            # device node (/dev/sdc etc.) that the filesystem tools need.
+            - name: Resolve the LUN symlink to its real device node
+              ansible.builtin.set_fact:
+                stalwart_data_disk_device: >-
+                  {{ stalwart_data_disk_link.stat.lnk_source | default(stalwart_data_disk_lun_path) }}
+
+            # Safety gate: read what is already on the disk before touching
+            # it. A disk that carries any filesystem is left strictly alone,
+            # so a re-run can never destroy existing mail.
+            - name: Check for an existing filesystem on the data disk
+              ansible.builtin.command:
+                cmd: "blkid -o value -s TYPE {{ stalwart_data_disk_device | trim }}"
+              register: stalwart_data_disk_fstype
+              changed_when: false
+              failed_when: false
+
+            # force stays at its default of false, so the module itself also
+            # refuses to overwrite a filesystem it did not create. Formatting
+            # the whole block device (no partition table) keeps growth and
+            # reattach simple, which is the norm for cloud data disks.
+            - name: Create an ext4 filesystem on the blank data disk
+              community.general.filesystem:
+                dev: "{{ stalwart_data_disk_device | trim }}"
+                fstype: ext4
+                force: false
+              when: stalwart_data_disk_fstype.stdout | default('') | trim | length == 0
+
+            - name: Read the data disk filesystem UUID
+              ansible.builtin.command:
+                cmd: "blkid -o value -s UUID {{ stalwart_data_disk_device | trim }}"
+              register: stalwart_data_disk_uuid
+              changed_when: false
+              failed_when: false
+
+            # The role expects this path to exist; create it before mounting
+            # so the mount lands on a real directory.
+            - name: Ensure the Stalwart data mountpoint exists
+              ansible.builtin.file:
+                path: "{{ stalwart_data_mount }}"
+                state: directory
+                owner: root
+                group: root
+                mode: "0755"
+
+            # Persist by UUID, never by device path: a stale /dev/sdX entry in
+            # fstab can leave the VM unbootable. nofail means a detached disk
+            # degrades the boot instead of blocking it. Skipped when no UUID
+            # was read (e.g. --check on an unformatted disk).
+            - name: Mount the data disk at the Stalwart data directory
+              ansible.posix.mount:
+                path: "{{ stalwart_data_mount }}"
+                src: "UUID={{ stalwart_data_disk_uuid.stdout | trim }}"
+                fstype: ext4
+                opts: defaults,nofail
+                state: mounted
+              when: stalwart_data_disk_uuid.stdout | default('') | trim | length > 0
+
+  roles:
+    - role: jnix85.stalwart_mail_server

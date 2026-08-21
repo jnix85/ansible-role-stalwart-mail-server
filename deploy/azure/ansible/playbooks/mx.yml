@@ -1,0 +1,103 @@
+---
+# MX edge nodes: postfix accepts inbound mail for the relay domains,
+# rspamd filters it (milter), and everything accepted is relayed to the
+# Stalwart mailbox server over the VNet.
+- name: Configure MX edge relays
+  hosts: mx_edges
+  become: true
+
+  handlers:
+    # Listed before the postfix restart so its notify lands on a
+    # handler that has not run yet in the same flush.
+    - name: Rebuild transport map
+      ansible.builtin.command: postmap /etc/postfix/transport
+      changed_when: true
+      notify: Restart postfix
+
+    - name: Restart postfix
+      ansible.builtin.service:
+        name: postfix
+        state: restarted
+
+    - name: Restart rspamd
+      ansible.builtin.service:
+        name: rspamd
+        state: restarted
+
+  tasks:
+    - name: Install postfix, rspamd and certbot
+      ansible.builtin.apt:
+        name:
+          - postfix
+          - rspamd
+          - redis-server
+          - certbot
+        state: present
+        update_cache: true
+
+    - name: Check for existing Let's Encrypt certificate
+      ansible.builtin.stat:
+        path: "/etc/letsencrypt/live/{{ inventory_hostname }}/fullchain.pem"
+      register: mx_le_cert
+
+    - name: Obtain Let's Encrypt certificate (HTTP-01 standalone)
+      ansible.builtin.command: >-
+        certbot certonly --standalone --non-interactive --agree-tos
+        -m {{ acme_contact }} -d {{ inventory_hostname }}
+      when:
+        - mx_letsencrypt_enabled | bool
+        - not mx_le_cert.stat.exists
+      register: mx_certbot
+      changed_when: mx_certbot.rc == 0
+      notify: Restart postfix
+
+    - name: Re-check certificate presence
+      ansible.builtin.stat:
+        path: "/etc/letsencrypt/live/{{ inventory_hostname }}/fullchain.pem"
+      register: mx_le_cert_final
+
+    - name: Configure postfix main.cf
+      ansible.builtin.template:
+        src: templates/postfix-main.cf.j2
+        dest: /etc/postfix/main.cf
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart postfix
+
+    - name: Configure relay transport map
+      ansible.builtin.template:
+        src: templates/postfix-transport.j2
+        dest: /etc/postfix/transport
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Rebuild transport map
+
+    - name: Configure rspamd milter worker
+      ansible.builtin.template:
+        src: templates/rspamd-worker-proxy.inc.j2
+        dest: /etc/rspamd/local.d/worker-proxy.inc
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart rspamd
+
+    - name: Enable and start services
+      ansible.builtin.service:
+        name: "{{ item }}"
+        state: started
+        enabled: true
+      loop:
+        - redis-server
+        - rspamd
+        - postfix
+
+    - name: Flush handlers before verification
+      ansible.builtin.meta: flush_handlers
+
+    - name: Wait for SMTP listener
+      ansible.builtin.wait_for:
+        port: 25
+        host: 127.0.0.1
+        timeout: 30

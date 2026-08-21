@@ -1,0 +1,5 @@
+# Copy to terraform.tfvars and fill in.
+domain         = "example.com"
+admin_cidr     = "203.0.113.0/24" # your office/VPN range
+ssh_public_key = "ssh-ed25519 AAAA... you@laptop"
+location       = "eastus2"

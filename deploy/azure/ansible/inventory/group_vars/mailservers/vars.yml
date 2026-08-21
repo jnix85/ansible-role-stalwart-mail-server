@@ -1,0 +1,26 @@
+---
+stalwart_hostname: "{{ inventory_hostname }}"
+stalwart_admin_password: "{{ vault_stalwart_admin_password }}"
+
+# Let's Encrypt via tls-alpn-01 on 443 (the NSG leaves 443 open).
+stalwart_tls_mode: acme
+stalwart_acme_contact: "{{ acme_contact }}"
+stalwart_acme_domains:
+  - "{{ inventory_hostname }}"
+
+stalwart_storage_backend: rocksdb
+stalwart_cli_install: true
+
+# The NSG already restricts inbound; the host firewall stays off to
+# avoid double management. Flip on if you prefer defense in depth.
+stalwart_manage_firewall: false
+
+# Trust the MX edges as inbound relays. Verify this block against the
+# Stalwart docs for your installed version before first deploy — see
+# the deployment README.
+stalwart_extra_config: |
+  [session.connect]
+  # MX edges relay over the VNet.
+  {% for mx in groups['mx_edges'] %}
+  # {{ mx }}: {{ hostvars[mx].private_ip }}
+  {% endfor %}

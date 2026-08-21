@@ -1,0 +1,8 @@
+---
+# Deploy the whole mail platform:
+#   ansible-playbook site.yml --ask-vault-pass
+- name: Configure MX edges
+  ansible.builtin.import_playbook: playbooks/mx.yml
+
+- name: Configure mailbox server
+  ansible.builtin.import_playbook: playbooks/mailbox.yml

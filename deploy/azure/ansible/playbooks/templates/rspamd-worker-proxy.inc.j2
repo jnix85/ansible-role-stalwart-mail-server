@@ -1,0 +1,10 @@
+# {{ ansible_managed }}
+# Milter mode: postfix hands messages to rspamd on 11332; self-scan
+# runs the full filter pipeline in this worker.
+bind_socket = "127.0.0.1:11332";
+milter = yes;
+timeout = 120s;
+upstream "local" {
+  default = yes;
+  self_scan = yes;
+}

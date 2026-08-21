@@ -1,0 +1,11 @@
+---
+# Where accepted mail is relayed: the mailbox server's VNet address,
+# taken from the Terraform-generated inventory.
+mailbox_private_ip: "{{ hostvars[groups['mailservers'] | first].private_ip }}"
+
+# Let's Encrypt cert for inbound STARTTLS (needs the MX hostname to
+# resolve to this host first — set false for the very first run if DNS
+# isn't ready; postfix falls back to the snakeoil cert).
+mx_letsencrypt_enabled: true
+
+mx_message_size_limit: 52428800
