@@ -85,7 +85,16 @@ Defaults live in [`defaults/main.yml`](defaults/main.yml). The important ones:
 | `stalwart_libc` | `gnu` | `gnu` or `musl` release flavour. |
 | `stalwart_install_dir` | `/opt/stalwart` | Install prefix (`bin/`, `etc/`, `data/`, `logs/`). |
 | `stalwart_user` / `stalwart_group` | `stalwart` | Dedicated system account the daemon runs as. |
-| `stalwart_cli_install` | `false` | Also install the `stalwart-cli` admin tool to `bin/stalwart-cli`. |
+| `stalwart_cli_install` | `false` | Install a separate `stalwart-cli` binary. See the caveat below before enabling. |
+
+Note on `stalwart_cli_install`: upstream publishes **no `stalwart-cli`
+release asset** for 0.16.x — verified against the v0.16.9 release, where
+every candidate asset name returns 404 — because the server binary now
+carries the administrative commands itself (`stalwart --help`), alongside
+the web admin UI. Leave this off unless you are installing an older
+release that shipped a CLI, or you point `stalwart_cli_download_url` at a
+binary you host. With it on and no such asset, the role fails fast during
+install rather than deploying something broken.
 
 ### Identity & admin
 

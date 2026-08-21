@@ -9,7 +9,11 @@ stalwart_acme_domains:
   - "{{ inventory_hostname }}"
 
 stalwart_storage_backend: rocksdb
-stalwart_cli_install: true
+
+# Off deliberately: upstream ships no separate stalwart-cli asset for
+# 0.16.x (the server binary carries the admin commands), so enabling this
+# would fail the install. See the role README.
+stalwart_cli_install: false
 
 # All mail lives on the attached Azure managed data disk, not the OS disk.
 # The mailbox playbook formats and mounts the disk at this path before the

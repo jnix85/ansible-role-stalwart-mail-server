@@ -85,9 +85,17 @@ None fixed CI.
 **Blockers in this environment** (verify before burning time):
 - Proxy blocks `circleci.com` entirely (CONNECT 403) — no API/log access,
   token or not.
-- Proxy blocks GitHub for repos other than this one (can't fetch the
-  stalwart release to verify asset naming: `stalwart-*` vs
-  `stalwart-mail-*` — the role now probes both, so real hosts are fine).
+- GitHub *release downloads* now work through the proxy even for other
+  repos (the scoped `api.github.com` still does not). Asset naming is
+  therefore RESOLVED, verified against v0.16.9:
+    - `stalwart-x86_64-unknown-linux-gnu.tar.gz` -> 200 (39.9 MB)
+    - `stalwart-aarch64-unknown-linux-gnu.tar.gz` -> 200 (37.3 MB)
+    - `stalwart-x86_64-unknown-linux-musl.tar.gz` -> 200
+    - `stalwart-mail-*` -> 404 (legacy name, kept only as a fallback)
+    - `stalwart-cli-*` -> 404 under every candidate name; upstream ships
+      no separate CLI for 0.16.x, so `stalwart_cli_install` needs an
+      explicit `stalwart_cli_download_url`.
+  The download URL is NOT the cause of the Molecule failures.
 - No Docker daemon in the sandbox — can't run Molecule locally.
 - `AWS_ACCESS_KEY_ID/SECRET` env vars exist but are **invalid**
   (InvalidClientTokenId).
