@@ -70,7 +70,15 @@ version bump, Galaxy publish. Original ranked list for reference:
 Suggested scope: fix 1–10 in one PR; note 11–13 in the PR body as deferred
 unless the user wants them.
 
-## SOLVED: why Molecule always failed
+## RESOLVED — CI is green
+
+The root cause below is fixed (commit "Configure Stalwart the way 0.16
+actually expects"). The full CircleCI pipeline passes for the first
+time: lint plus molecule on debian13, ubuntu2404 and ubuntu2604. The
+role now writes the JSON data store descriptor the server actually
+consumes, and the smoke test that exposed the bug verifies every run.
+
+## Root cause: why Molecule always failed
 
 Root cause, proven by running the real 0.16.9 binary locally against the
 config this role renders:
@@ -113,6 +121,17 @@ because handlers flush at end of play regardless of --tags and tried to
 restart a unit that did not exist yet.
 
 The diagnostics have been removed from .circleci/config.yml.
+
+Verified against the real 0.16.9 binary before shipping: the descriptor
+the role generates is accepted for rocksdb and sqlite and the server
+stays up; a bootstrapped server binds 25, 443, 465, 993, 995, 4190 and
+8080 (no 587 or 143, which the old port list wrongly expected);
+/healthz/live answers 200 on both 443 and 8080.
+
+Not verified, and documented as such: the PostgreSql/MySql field names
+(the server ignores unknown fields instead of rejecting them, so they
+cannot be confirmed by probing), and whether the recovery-admin account
+accepts a login.
 
 ## Historical notes on the CI investigation
 
