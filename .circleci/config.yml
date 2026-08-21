@@ -87,34 +87,41 @@ jobs:
           name: Molecule create
           command: molecule create
       - run:
-          name: Converge up to the stage under test
-          # Round one proved setup, collections and create all pass and
-          # that a full converge fails, so this splits converge by role
-          # phase. include_vars carries the "always" tag, so it still
-          # runs under every --tags subset.
+          name: Converge everything except the smoke test
+          # Rounds one and two narrowed this to: the role's tasks all
+          # succeed, systemd accepts the unit, but the daemon is dead
+          # moments later. Skipping smoke keeps converge green so the
+          # probes below decide the job's outcome.
           command: |
-            BASE=stalwart_preflight,stalwart_install
-            CONF=$BASE,stalwart_tls,stalwart_configure
+            molecule converge -- --tags \
+              stalwart_preflight,stalwart_install,stalwart_tls,stalwart_configure,stalwart_service
+      - run:
+          name: Collect service state and journal
+          # Printed in full so a human reading CircleCI sees the real
+          # error directly. The grep below turns one error class into
+          # this job's exit status, which is the only signal readable
+          # from the sandbox that cannot reach circleci.com.
+          command: |
+            CID=$(docker ps -q --filter name=stalwart-instance | head -1)
+            echo "container: $CID"
+            docker exec "$CID" systemctl status stalwart --no-pager -l > /tmp/diag.txt 2>&1 || true
+            docker exec "$CID" journalctl -u stalwart --no-pager -n 200 >> /tmp/diag.txt 2>&1 || true
+            docker exec "$CID" sh -c 'cat /opt/stalwart/etc/config.toml' >> /tmp/diag.txt 2>&1 || true
+            echo "===== BEGIN DIAGNOSTIC ====="
+            cat /tmp/diag.txt
+            echo "===== END DIAGNOSTIC ====="
+      - run:
+          name: Probe for this stage's error class
+          # Green means the pattern was found in the journal.
+          command: |
             case "<< parameters.stage >>" in
-              install) TAGS=$BASE ;;
-              config)  TAGS=$CONF ;;
-              *)       TAGS=$CONF,stalwart_service ;;
+              config) PAT='config|toml|parse|invalid|unknown field|missing field|deserial' ;;
+              perm)   PAT='permission denied|eacces|not permitted|read-only file system' ;;
+              bind)   PAT='address already in use|cannot assign|failed to bind|eaddr|permission.*bind' ;;
+              *)      PAT='panic|fatal|error' ;;
             esac
-            echo "converging with tags: $TAGS"
-            molecule converge -- --tags "$TAGS"
-      - when:
-          condition:
-            equal: ["<< parameters.stage >>", "active"]
-          steps:
-            - run:
-                name: Assert the service actually started
-                # Distinguishes "the role's tasks succeed but the daemon
-                # never runs" from "the daemon runs and only the smoke
-                # test's probes fail".
-                command: |
-                  docker ps -a
-                  CID=$(docker ps -q --filter name=stalwart-instance | head -1)
-                  docker exec "$CID" systemctl is-active stalwart
+            echo "probing for: $PAT"
+            grep -qiE "$PAT" /tmp/diag.txt
       - run:
           name: Molecule destroy
           command: molecule destroy || true
@@ -142,7 +149,7 @@ workflows:
           matrix:
             parameters:
               stage:
-                - install
                 - config
-                - service
-                - active
+                - perm
+                - bind
+                - any
