@@ -1,6 +1,25 @@
 ---
 version: 2.1
 
+# Shared setup, so the diagnostic jobs below run byte-identical steps to
+# the real molecule job and cannot drift from it.
+commands:
+  setup_python:
+    steps:
+      - run:
+          name: Install test dependencies
+          # A venv sidesteps PEP 668 (externally-managed system Python).
+          command: |
+            python3 -m venv ~/venv
+            ~/venv/bin/pip install --upgrade pip
+            ~/venv/bin/pip install ansible-core molecule 'molecule-plugins[docker]' docker
+            echo 'export PATH="$HOME/venv/bin:$PATH"' >> "$BASH_ENV"
+  install_collections:
+    steps:
+      - run:
+          name: Install collection dependencies
+          command: ansible-galaxy collection install -r requirements.yml
+
 jobs:
   lint:
     docker:
@@ -39,17 +58,8 @@ jobs:
       MOLECULE_DISTRO: << parameters.distro >>
     steps:
       - checkout
-      - run:
-          name: Install test dependencies
-          # A venv sidesteps PEP 668 (externally-managed system Python).
-          command: |
-            python3 -m venv ~/venv
-            ~/venv/bin/pip install --upgrade pip
-            ~/venv/bin/pip install ansible-core molecule 'molecule-plugins[docker]' docker
-            echo 'export PATH="$HOME/venv/bin:$PATH"' >> "$BASH_ENV"
-      - run:
-          name: Install collection dependencies
-          command: ansible-galaxy collection install -r requirements.yml
+      - setup_python
+      - install_collections
       - run:
           name: Run Molecule tests
           command: molecule test

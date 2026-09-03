@@ -1,0 +1,7 @@
+---
+# Domains this platform accepts mail for.
+mail_domains:
+  - example.com
+
+# Contact for Let's Encrypt registration (MX certbot and Stalwart ACME).
+acme_contact: postmaster@example.com

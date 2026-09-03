@@ -1,0 +1,21 @@
+# Copy to terraform.tfvars and fill in.
+domain         = "example.com"
+admin_cidr     = "203.0.113.0/24" # your office/VPN range
+ssh_public_key = "ssh-ed25519 AAAA... you@laptop"
+location       = "eastus2"
+
+# "arm64" moves all three VMs to Ampere Altra (Bpsv2) and the arm64 Ubuntu
+# image for the same 2 vCPU / 4 GiB + 2 vCPU / 8 GiB shapes at lower cost.
+# vm_architecture = "arm64"
+
+# Sizes default per architecture; set these only to deviate from the shapes.
+# mx_vm_size   = "Standard_B2ls_v2" # 2 vCPU / 4 GiB  (arm64: B2pls_v2)
+# mail_vm_size = "Standard_B2s_v2"  # 2 vCPU / 8 GiB  (arm64: B2ps_v2)
+
+# 30 GiB is the Ubuntu 24.04 image floor — do not go lower.
+# os_disk_gb   = 30
+# os_disk_type = "StandardSSD_LRS"
+
+# Mail store, mailbox VM only. Size for expected mailbox growth; grows online.
+# data_disk_gb   = 64
+# data_disk_type = "StandardSSD_LRS"

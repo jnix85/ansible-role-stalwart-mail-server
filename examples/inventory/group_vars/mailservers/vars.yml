@@ -4,30 +4,23 @@
 
 # The FQDN the server identifies as (EHLO, certificates, web admin).
 stalwart_hostname: "{{ inventory_hostname }}"
+stalwart_public_url: "https://{{ inventory_hostname }}"
 
-# From vault.yml — never put the real password here.
+# From vault.yml — never put the real password here. Stalwart takes the
+# bootstrap admin credential from the environment, so this lands on the
+# host in plain text in a 0640 root-owned file.
 stalwart_admin_password: "{{ vault_stalwart_admin_password }}"
 
-# --- TLS -----------------------------------------------------------
-# Production: Stalwart obtains Let's Encrypt certificates itself.
-# Requires the hostname to resolve to this host and port 443 reachable
-# from the internet. For a lab box use: stalwart_tls_mode: selfsigned
-stalwart_tls_mode: acme
-stalwart_acme_contact: "postmaster@{{ inventory_hostname }}"
-stalwart_acme_domains:
-  - "{{ inventory_hostname }}"
-
 # --- Storage -------------------------------------------------------
-# rocksdb (default, embedded) | sqlite | postgresql
+# rocksdb (default, embedded) | sqlite | postgresql | mysql
 stalwart_storage_backend: rocksdb
+# Point this at a dedicated disk for anything beyond a lab.
+# stalwart_data_dir: /var/lib/stalwart
 
 # --- Extras --------------------------------------------------------
-# Open the enabled listener ports (never activates the firewall itself).
+# Open the ports Stalwart binds (never activates the firewall itself).
 stalwart_manage_firewall: true
 
-# Install the stalwart-cli admin tool alongside the server.
-stalwart_cli_install: true
-
-# Example listener tweaks (defaults shown; uncomment to change):
-# stalwart_pop3_enabled: true
-# stalwart_managesieve_enabled: true
+# TLS, domains, accounts and listeners are configured in the web admin
+# at https://<host>/ after the first run — Stalwart 0.16 keeps them in
+# its data store rather than in a configuration file.

@@ -17,56 +17,7 @@
       - stalwart_admin_password | length >= 12
     fail_msg: >-
       stalwart_admin_password must be set (>= 12 characters).
-      Supply it via Ansible Vault; it is stored on the host only as a hash.
+      Supply it via Ansible Vault. Stalwart 0.16 takes the bootstrap
+      admin credential as an environment variable, so it is written to
+      the host in plain text in a 0640 file owned by root.
     quiet: true
-
-- name: Assert TLS configuration is valid
-  ansible.builtin.assert:
-    that:
-      - stalwart_tls_mode in ['acme', 'files', 'selfsigned']
-    fail_msg: "stalwart_tls_mode must be one of: acme, files, selfsigned."
-
-- name: Assert ACME settings
-  ansible.builtin.assert:
-    that:
-      - stalwart_acme_domains | length > 0
-      - stalwart_acme_contact | length > 0
-      - stalwart_acme_challenge in ['tls-alpn-01', 'http-01', 'dns-01']
-      - >-
-        not (stalwart_acme_challenge == 'tls-alpn-01'
-             and not (stalwart_https_enabled and stalwart_https_port | int == 443))
-      - >-
-        not (stalwart_acme_challenge == 'http-01'
-             and not (stalwart_http_enabled and stalwart_http_port | int == 80))
-    fail_msg: >-
-      ACME mode needs stalwart_acme_domains, stalwart_acme_contact and a valid
-      challenge type. Let's Encrypt validates tls-alpn-01 only on port 443
-      (requires stalwart_https_enabled with stalwart_https_port 443) and
-      http-01 only on port 80 (requires stalwart_http_enabled with
-      stalwart_http_port 80).
-  when: stalwart_tls_mode == 'acme'
-
-- name: Assert certificate file settings
-  ansible.builtin.assert:
-    that:
-      - stalwart_tls_cert_file | length > 0
-      - stalwart_tls_key_file | length > 0
-    fail_msg: >-
-      TLS mode "files" requires stalwart_tls_cert_file and stalwart_tls_key_file.
-  when: stalwart_tls_mode == 'files'
-
-- name: Assert storage configuration is valid
-  ansible.builtin.assert:
-    that:
-      - stalwart_storage_backend in ['rocksdb', 'sqlite', 'postgresql']
-    fail_msg: "stalwart_storage_backend must be one of: rocksdb, sqlite, postgresql."
-
-- name: Assert PostgreSQL settings
-  ansible.builtin.assert:
-    that:
-      - stalwart_postgresql_password | length > 0
-    fail_msg: >-
-      Storage backend "postgresql" requires stalwart_postgresql_password
-      (the role does not install or manage the PostgreSQL server itself).
-    quiet: true
-  when: stalwart_storage_backend == 'postgresql'

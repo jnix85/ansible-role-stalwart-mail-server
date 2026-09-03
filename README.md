@@ -13,25 +13,45 @@ user.
   targets; RHEL-family code paths exist but are currently untested)
 - **Native binary install** to `/opt/stalwart`, version-pinned and upgradeable
   by bumping `stalwart_version`
-- **Configurable TLS**: Stalwart's built-in ACME (Let's Encrypt), existing
-  certificate files, or a generated self-signed cert for labs
-- **Configurable storage**: RocksDB (default, zero dependencies), SQLite, or
-  an external PostgreSQL
-- **Per-protocol listener toggles**: SMTP, submission (STARTTLS + implicit
-  TLS), IMAP/IMAPS, POP3, ManageSieve, HTTPS (JMAP/API/web admin)
+- **Selectable data store**: RocksDB (default, zero dependencies), SQLite, or
+  an external PostgreSQL/MySQL
 - **Hardened systemd unit** (non-root, `ProtectSystem=strict`,
   `CAP_NET_BIND_SERVICE` only)
-- **Optional firewall management** (ufw/firewalld)
-- Admin password is required up front (Vault-friendly) and stored on the host
-  only as a SHA512-crypt hash
+- **Optional firewall management** (ufw/firewalld), which never activates the
+  firewall itself
+- **Smoke test on every run**, so the play fails if the server is not actually
+  serving afterwards
+
+## How Stalwart 0.16 is configured
+
+Read this first — it is not what most Ansible mail roles assume.
+
+Stalwart 0.16 does **not** read a configuration file for listeners, TLS,
+domains or accounts. The file passed to `stalwart --config` is a small JSON
+*data store descriptor* naming the store and how to reach it:
+
+```json
+{
+    "@type": "RocksDb",
+    "path": "/opt/stalwart/data"
+}
+```
+
+Everything else lives inside that store and is managed from the **web admin
+UI** at `https://<host>/`. A few bootstrap values are passed as environment
+variables on the unit instead: `STALWART_HOSTNAME`, `STALWART_PUBLIC_URL`,
+`STALWART_HTTPS_PORT` and `STALWART_RECOVERY_ADMIN`.
+
+So this role installs the binary, writes a correct descriptor, manages the
+service and firewall, and proves the result is running. It deliberately does
+not template listener or TLS settings, because this version ignores them.
 
 ## Requirements
 
 - Ansible **2.15+** on the controller
 - A systemd-based target on `x86_64` or `aarch64`
-- Collections (see `requirements.yml`): `community.crypto` (only for
-  `stalwart_tls_mode: selfsigned`), `community.general` and `ansible.posix`
-  (only when `stalwart_manage_firewall: true`)
+- Collections (see `requirements.yml`): `community.general` and
+  `ansible.posix`, needed only when `stalwart_manage_firewall: true`
 - Outbound HTTPS from the target to `github.com` (or override
   `stalwart_download_url` to point at an internal mirror)
 
@@ -58,17 +78,18 @@ Minimal playbook:
       vars:
         stalwart_hostname: mail.example.com
         stalwart_admin_password: "{{ vault_stalwart_admin_password }}"
-        stalwart_tls_mode: acme
-        stalwart_acme_contact: postmaster@example.com
-        stalwart_acme_domains:
-          - mail.example.com
 ```
 
-After the first run, open `https://mail.example.com` and log in to the web
-admin as `admin` with the password you supplied. Domains, accounts, DKIM
-signing and most runtime settings are managed there (or via the CLI/API) and
-are stored in the database — this role manages the *local* bootstrap
-configuration (listeners, storage, TLS, logging).
+The play fails if the server is not serving when it finishes, so a green run
+means a working daemon. Then open `https://mail.example.com/` and finish setup
+in the web admin: add your domain, create accounts, and enable TLS
+certificates. Stalwart also generates the exact SPF, DKIM and DMARC records to
+publish from there.
+
+First login uses the temporary `recovery-admin` account that
+`STALWART_RECOVERY_ADMIN` provisions from `stalwart_admin_password`. If that
+account is not accepted, follow Stalwart's documented recovery procedure —
+this role sets the variable but cannot verify the login flow for you.
 
 ## Role variables
 
@@ -85,57 +106,79 @@ Defaults live in [`defaults/main.yml`](defaults/main.yml). The important ones:
 | `stalwart_libc` | `gnu` | `gnu` or `musl` release flavour. |
 | `stalwart_install_dir` | `/opt/stalwart` | Install prefix (`bin/`, `etc/`, `data/`, `logs/`). |
 | `stalwart_user` / `stalwart_group` | `stalwart` | Dedicated system account the daemon runs as. |
-| `stalwart_cli_install` | `false` | Also install the `stalwart-cli` admin tool to `bin/stalwart-cli`. |
+| `stalwart_cli_install` | `false` | Install a separate `stalwart-cli` binary. See the caveat below before enabling. |
+
+Note on `stalwart_cli_install`: upstream publishes **no `stalwart-cli`
+release asset** for 0.16.x — verified against the v0.16.9 release, where
+every candidate asset name returns 404 — because the server binary now
+carries the administrative commands itself (`stalwart --help`), alongside
+the web admin UI. Leave this off unless you are installing an older
+release that shipped a CLI, or you point `stalwart_cli_download_url` at a
+binary you host. With it on and no such asset, the role fails fast during
+install rather than deploying something broken.
 
 ### Identity & admin
 
 | Variable | Default | Description |
 | --- | --- | --- |
 | `stalwart_hostname` | `ansible_fqdn` | FQDN the server identifies as. Set this explicitly in production. |
-| `stalwart_admin_user` | `admin` | Fallback administrator account name. |
-| `stalwart_admin_password` | — | **Required**, min 12 chars. Supply via Ansible Vault. |
+| `stalwart_public_url` | `https://{{ stalwart_hostname }}` | Base URL the web admin and generated links use. |
+| `stalwart_admin_password` | — | **Required**, min 12 chars. Supply via Ansible Vault. Passed to the service as `STALWART_RECOVERY_ADMIN`. |
+| `stalwart_env_file` | `<install_dir>/etc/stalwart.env` | Bootstrap environment file. Holds the admin password, so it is written `0640` root-owned. |
 
-### TLS (`stalwart_tls_mode`)
-
-| Mode | Description |
-| --- | --- |
-| `acme` | Stalwart obtains/renews certificates itself. Configure `stalwart_acme_contact`, `stalwart_acme_domains`, `stalwart_acme_challenge` (`tls-alpn-01` default — requires port 443 reachable from the internet; also `http-01`, `dns-01`). |
-| `files` | Use existing certs: set `stalwart_tls_cert_file` and `stalwart_tls_key_file` (must be readable by the `stalwart` user; remember to restart Stalwart when they renew). |
-| `selfsigned` | **Default.** Role generates a self-signed cert under `etc/certs/`. Labs and testing only. |
+Note that this credential is written to the host in plain text, because the
+server takes it from the environment. The file is `0640` and owned by root,
+but it is not a hash.
 
 ### Storage (`stalwart_storage_backend`)
 
-| Backend | Description |
-| --- | --- |
-| `rocksdb` | **Default.** Embedded store under `stalwart_data_dir`. Best single-node choice. |
-| `sqlite` | Embedded SQL store, fine for small deployments. |
-| `postgresql` | External PostgreSQL — set `stalwart_postgresql_host/port/database/user/password`. The role does **not** install PostgreSQL. |
+Selects the `@type` of the generated data store descriptor.
+
+| Backend | `@type` | Description |
+| --- | --- | --- |
+| `rocksdb` | `RocksDb` | **Default.** Embedded store under `stalwart_data_dir`. Best single-node choice. Verified against 0.16.9. |
+| `sqlite` | `Sqlite` | Embedded SQL store, fine for small deployments. Verified against 0.16.9. |
+| `postgresql` | `PostgreSql` | External PostgreSQL — set `stalwart_db_host/port/name/user/password`. The role does **not** install a database. |
+| `mysql` | `MySql` | External MySQL/MariaDB, same settings. |
+
+Only the two embedded backends are verified end to end against the real
+binary. The server *ignores* unknown fields in the descriptor rather than
+rejecting them, so a wrong SQL field name surfaces as a connection failure at
+startup. If you hit that, set `stalwart_store_descriptor` to a mapping that is
+written verbatim:
+
+```yaml
+stalwart_store_descriptor:
+  "@type": PostgreSql
+  host: db.internal
+  database: stalwart
+  user: stalwart
+  password: "{{ vault_stalwart_db_password }}"
+```
+
+`stalwart_data_dir` (default `<install_dir>/data`) is the store path for the
+embedded backends. Point it at a dedicated disk for real deployments.
 
 ### Listeners
 
-`stalwart_listen_address` defaults to `auto`: dual-stack `[::]` when the host
-has IPv6, `0.0.0.0` when IPv6 is disabled (e.g. booted with `ipv6.disable=1`).
-Set it explicitly to pin a specific bind address — and set
-`stalwart_smoke_test_host` to match if it isn't a wildcard.
+Listeners are configured in the web admin, not here. `stalwart_expected_ports`
+records the ports a freshly bootstrapped 0.16 server binds, and the role uses
+that list only to open the firewall and to verify the service is healthy:
 
-Each protocol has an `_enabled` toggle and a `_port` variable:
+| Port | Purpose |
+| --- | --- |
+| 25 | SMTP |
+| 443 | HTTPS: JMAP, API, web admin |
+| 465 | submissions (implicit TLS) |
+| 993 | IMAPS |
+| 995 | POP3S |
+| 4190 | ManageSieve |
+| 8080 | plain HTTP |
 
-| Toggle | Default | Port(s) |
-| --- | --- | --- |
-| `stalwart_smtp_enabled` | `true` | 25 |
-| `stalwart_submission_enabled` | `true` | 587 (STARTTLS) |
-| `stalwart_submissions_enabled` | `true` | 465 (implicit TLS) |
-| `stalwart_imap_enabled` | `true` | 143 (STARTTLS) |
-| `stalwart_imaps_enabled` | `true` | 993 (implicit TLS) |
-| `stalwart_pop3_enabled` | `false` | 110 / 995 |
-| `stalwart_managesieve_enabled` | `false` | 4190 |
-| `stalwart_https_enabled` | `true` | 443 (JMAP, REST API, web admin) |
-| `stalwart_http_enabled` | `false` | 8080 (plaintext, for reverse proxies) |
-
-The toggles feed a single `stalwart_listeners` list that the config
-template, firewall rules and smoke test all iterate — override that list
-directly to add custom listeners (fields: `name`, `protocol`, `enabled`,
-`port`, optional `tls_implicit`).
+Note there is no 587 or 143 by default — 0.16 binds the implicit-TLS ports
+instead. If you change the listeners in the web admin, update
+`stalwart_expected_ports` to match or the smoke test will disagree with
+reality.
 
 ### Firewall
 
@@ -149,15 +192,16 @@ effect if you start it.
 
 ### Everything else
 
-- `stalwart_smoke_test` (default `true`): after deployment the role verifies
-  the service is active, enabled listeners accept connections, and
-  `/healthz/live` returns 200 — so a green play means a working server. Set
-  `stalwart_smoke_test_host` if `stalwart_listen_address` binds a specific
-  address instead of a wildcard.
-- `stalwart_extra_config` accepts raw TOML appended verbatim to
-  `config.toml` for any local setting the role doesn't model.
+- `stalwart_smoke_test` (default `true`): after deployment the role re-reads
+  the service state, waits for `stalwart_expected_ports`, and polls
+  `/healthz/live` until it returns 200. This is deliberately strict: a bad
+  data store descriptor makes Stalwart exit *after* systemd has reported a
+  successful start, and only a check like this catches it. Set
+  `stalwart_smoke_test_host` if you probe something other than localhost.
+- `stalwart_store_descriptor`: write an exact descriptor yourself, bypassing
+  the backend settings entirely.
 
-## Example: existing certs + PostgreSQL
+## Example: external PostgreSQL on a dedicated data disk
 
 ```yaml
 - hosts: mailservers
@@ -167,14 +211,14 @@ effect if you start it.
       vars:
         stalwart_hostname: mail.example.com
         stalwart_admin_password: "{{ vault_stalwart_admin_password }}"
-        stalwart_tls_mode: files
-        stalwart_tls_cert_file: /etc/letsencrypt/live/mail.example.com/fullchain.pem
-        stalwart_tls_key_file: /etc/letsencrypt/live/mail.example.com/privkey.pem
         stalwart_storage_backend: postgresql
-        stalwart_postgresql_host: db.internal
-        stalwart_postgresql_password: "{{ vault_stalwart_pg_password }}"
+        stalwart_db_host: db.internal
+        stalwart_db_password: "{{ vault_stalwart_db_password }}"
         stalwart_manage_firewall: true
 ```
+
+Certificates are not in that list on purpose: request and renew them from the
+web admin, which is where 0.16 keeps them.
 
 ## After installation: DNS checklist
 

@@ -1,60 +1,45 @@
 ---
-# The admin password is hashed on the target with a salt derived
-# deterministically from the password itself, so repeated runs produce
-# the same hash and the config template stays idempotent.
-- name: Hash administrator password
-  ansible.builtin.command:
-    argv:
-      - openssl
-      - passwd
-      - "-6"
-      - -salt
-      - "{{ (stalwart_admin_password ~ stalwart_hostname) | hash('sha256') | truncate(16, true, '') }}"
-      - -stdin
-    stdin: "{{ stalwart_admin_password }}"
-  register: stalwart_admin_hash_result
-  changed_when: false
-  no_log: true
+# Stalwart 0.16 reads only a data store descriptor from --config: a JSON
+# document naming the store and how to reach it. Listeners, TLS,
+# domains and accounts all live inside the store and are managed from
+# the web admin, so there is nothing else to template here.
+- name: Assert the storage backend is supported
+  ansible.builtin.assert:
+    that:
+      - stalwart_storage_backend in stalwart_store_types
+    fail_msg: >-
+      stalwart_storage_backend must be one of:
+      {{ stalwart_store_types.keys() | join(', ') }}.
 
-- name: Set admin secret hash fact
+# Built as a mapping and serialized with to_nice_json so the output is
+# valid JSON by construction rather than by careful quoting.
+- name: Build the data store descriptor
   ansible.builtin.set_fact:
-    stalwart_admin_secret_hash: "{{ stalwart_admin_hash_result.stdout | trim }}"
-  no_log: true
+    stalwart_store_descriptor_effective: >-
+      {{ stalwart_store_descriptor
+         if stalwart_store_descriptor
+         else (stalwart_store_descriptor_file_backed
+               if stalwart_storage_backend in ['rocksdb', 'sqlite']
+               else stalwart_store_descriptor_sql) }}
+  vars:
+    stalwart_store_descriptor_file_backed:
+      "@type": "{{ stalwart_store_types[stalwart_storage_backend] }}"
+      path: "{{ stalwart_data_dir }}"
+    stalwart_store_descriptor_sql:
+      "@type": "{{ stalwart_store_types[stalwart_storage_backend] }}"
+      host: "{{ stalwart_db_host }}"
+      port: "{{ stalwart_db_port | int }}"
+      database: "{{ stalwart_db_name }}"
+      user: "{{ stalwart_db_user }}"
+      password: "{{ stalwart_db_password }}"
+  no_log: "{{ stalwart_db_password | length > 0 }}"
 
-# "auto" binds dual-stack when the host has IPv6, IPv4-only otherwise
-# (hosts booted with ipv6.disable=1 cannot bind "[::]" at all).
-- name: Resolve listener bind address
-  ansible.builtin.set_fact:
-    stalwart_effective_listen_address: >-
-      {{ stalwart_listen_address if stalwart_listen_address != 'auto'
-         else ('[::]' if ansible_all_ipv6_addresses | default([]) | length > 0
-               else '0.0.0.0') }}
-
-- name: Resolve TLS certificate paths
-  ansible.builtin.set_fact:
-    stalwart_effective_cert_file: >-
-      {{ stalwart_tls_cert_file if stalwart_tls_mode == 'files'
-         else stalwart_selfsigned_dir ~ '/cert.pem' }}
-    stalwart_effective_key_file: >-
-      {{ stalwart_tls_key_file if stalwart_tls_mode == 'files'
-         else stalwart_selfsigned_dir ~ '/key.pem' }}
-  when: stalwart_tls_mode in ['files', 'selfsigned']
-
-- name: Create ACME cache directory
-  ansible.builtin.file:
-    path: "{{ stalwart_install_dir }}/etc/acme"
-    state: directory
-    owner: "{{ stalwart_user }}"
+- name: Write the data store descriptor
+  ansible.builtin.copy:
+    content: "{{ stalwart_store_descriptor_effective | to_nice_json }}\n"
+    dest: "{{ stalwart_config_file }}"
+    owner: root
     group: "{{ stalwart_group }}"
-    mode: "0700"
-  when: stalwart_tls_mode == 'acme'
-
-- name: Template Stalwart configuration
-  ansible.builtin.template:
-    src: config.toml.j2
-    dest: "{{ stalwart_install_dir }}/etc/config.toml"
-    owner: "{{ stalwart_user }}"
-    group: "{{ stalwart_group }}"
-    mode: "0600"
-  diff: false
+    mode: "0640"
+  no_log: "{{ stalwart_db_password | length > 0 }}"
   notify: Restart stalwart

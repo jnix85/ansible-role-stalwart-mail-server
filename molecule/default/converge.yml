@@ -5,7 +5,6 @@
   vars:
     stalwart_admin_password: "molecule-test-password"
     stalwart_hostname: mail.molecule.test
-    stalwart_tls_mode: selfsigned
     stalwart_storage_backend: rocksdb
     stalwart_manage_firewall: false
   roles:

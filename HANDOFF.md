@@ -70,7 +70,70 @@ version bump, Galaxy publish. Original ranked list for reference:
 Suggested scope: fix 1–10 in one PR; note 11–13 in the PR body as deferred
 unless the user wants them.
 
-## Open mystery: Molecule CI failures (do not guess further)
+## RESOLVED — CI is green
+
+The root cause below is fixed (commit "Configure Stalwart the way 0.16
+actually expects"). The full CircleCI pipeline passes for the first
+time: lint plus molecule on debian13, ubuntu2404 and ubuntu2604. The
+role now writes the JSON data store descriptor the server actually
+consumes, and the smoke test that exposed the bug verifies every run.
+
+## Root cause: why Molecule always failed
+
+Root cause, proven by running the real 0.16.9 binary locally against the
+config this role renders:
+
+    Failed to parse data store settings at config.toml:
+    expected value at line 1 column 1
+
+**Stalwart 0.16.9 does not read a TOML configuration file at all.** The
+binary contains zero occurrences of the string ".toml". `--config` takes
+a JSON *data store descriptor*; every other setting lives inside the
+data store and is managed through the web admin UI or the API.
+
+Schema, discovered by letting the deserializer name its own fields:
+
+    {"@type":"RocksDb","path":"/opt/stalwart/data"}
+
+`@type` accepts exactly: RocksDb, Sqlite, FoundationDb, PostgreSql,
+MySql. With that file the daemon starts and stays up. Bootstrap knobs
+are environment variables on the unit: STALWART_HOSTNAME,
+STALWART_PUBLIC_URL, STALWART_HTTPS_PORT, STALWART_RECOVERY_ADMIN,
+STALWART_RECOVERY_MODE.
+
+Consequences: templates/config.toml.j2 is not consumed by this version,
+so the listener/TLS/storage/admin-credential templating never took
+effect. The daemon exited at startup, `systemd: state=started` still
+reported success because systemd had launched it, and the role's own
+smoke test correctly caught that it was not running. The smoke test was
+right for ten runs. This was never CI-specific: a real host would have
+failed identically.
+
+How it was found without log access: staged CircleCI jobs, since each
+job publishes its own commit status even though circleci.com is
+unreachable from the sandbox. Round 1 (setup/collections/create/converge)
+put the fault inside converge; round 2 (by role tag) showed converge
+minus smoke passes but `systemctl is-active` fails, i.e. the daemon dies
+after starting; round 3 probed the journal per error class and matched
+only the config class. Note rounds 1-2 had one artifact worth
+remembering: excluding stalwart_service made *earlier* stages fail,
+because handlers flush at end of play regardless of --tags and tried to
+restart a unit that did not exist yet.
+
+The diagnostics have been removed from .circleci/config.yml.
+
+Verified against the real 0.16.9 binary before shipping: the descriptor
+the role generates is accepted for rocksdb and sqlite and the server
+stays up; a bootstrapped server binds 25, 443, 465, 993, 995, 4190 and
+8080 (no 587 or 143, which the old port list wrongly expected);
+/healthz/live answers 200 on both 443 and 8080.
+
+Not verified, and documented as such: the PostgreSql/MySql field names
+(the server ignores unknown fields instead of rejecting them, so they
+cannot be confirmed by probing), and whether the recovery-admin account
+accepts a login.
+
+## Historical notes on the CI investigation
 
 CircleCI is connected (user did it; their sample branch
 `circleci-project-setup` still exists — safe to delete after asking).
@@ -85,9 +148,17 @@ None fixed CI.
 **Blockers in this environment** (verify before burning time):
 - Proxy blocks `circleci.com` entirely (CONNECT 403) — no API/log access,
   token or not.
-- Proxy blocks GitHub for repos other than this one (can't fetch the
-  stalwart release to verify asset naming: `stalwart-*` vs
-  `stalwart-mail-*` — the role now probes both, so real hosts are fine).
+- GitHub *release downloads* now work through the proxy even for other
+  repos (the scoped `api.github.com` still does not). Asset naming is
+  therefore RESOLVED, verified against v0.16.9:
+    - `stalwart-x86_64-unknown-linux-gnu.tar.gz` -> 200 (39.9 MB)
+    - `stalwart-aarch64-unknown-linux-gnu.tar.gz` -> 200 (37.3 MB)
+    - `stalwart-x86_64-unknown-linux-musl.tar.gz` -> 200
+    - `stalwart-mail-*` -> 404 (legacy name, kept only as a fallback)
+    - `stalwart-cli-*` -> 404 under every candidate name; upstream ships
+      no separate CLI for 0.16.x, so `stalwart_cli_install` needs an
+      explicit `stalwart_cli_download_url`.
+  The download URL is NOT the cause of the Molecule failures.
 - No Docker daemon in the sandbox — can't run Molecule locally.
 - `AWS_ACCESS_KEY_ID/SECRET` env vars exist but are **invalid**
   (InvalidClientTokenId).

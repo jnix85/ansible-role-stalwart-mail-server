@@ -30,7 +30,6 @@
     - {path: "{{ stalwart_install_dir }}/bin", owner: root, mode: "0755"}
     - {path: "{{ stalwart_install_dir }}/etc", owner: "{{ stalwart_user }}", mode: "0750"}
     - {path: "{{ stalwart_data_dir }}", owner: "{{ stalwart_user }}", mode: "0750"}
-    - {path: "{{ stalwart_log_dir }}", owner: "{{ stalwart_user }}", mode: "0750"}
 
 - name: Check installed Stalwart version
   ansible.builtin.command: "{{ stalwart_install_dir }}/bin/stalwart --version"

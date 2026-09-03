@@ -6,3 +6,10 @@ __pycache__/
 .vscode/
 .idea/
 .ansible/
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+.terraform.lock.hcl
+deploy/azure/ansible/inventory/hosts.yml

@@ -9,7 +9,11 @@ Wants=network-online.target
 Type=simple
 User={{ stalwart_user }}
 Group={{ stalwart_group }}
-ExecStart={{ stalwart_install_dir }}/bin/stalwart --config={{ stalwart_install_dir }}/etc/config.toml
+# Bootstrap settings that are not part of the data store descriptor.
+# Kept in a 0640 file rather than Environment= lines because the unit
+# itself is world readable and this carries the admin password.
+EnvironmentFile={{ stalwart_env_file }}
+ExecStart={{ stalwart_install_dir }}/bin/stalwart --config {{ stalwart_config_file }}
 Restart=on-failure
 RestartSec=5
 LimitNOFILE=65536
@@ -17,7 +21,7 @@ StandardOutput=journal
 StandardError=journal
 SyslogIdentifier={{ stalwart_service_name }}
 
-# Allow binding privileged ports (25, 143, 443, ...) as a non-root user.
+# Allow binding privileged ports (25, 443, 465, ...) as a non-root user.
 AmbientCapabilities=CAP_NET_BIND_SERVICE
 CapabilityBoundingSet=CAP_NET_BIND_SERVICE
 
@@ -26,9 +30,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectHome=true
 ProtectSystem=strict
-ReadWritePaths={{ ([stalwart_install_dir, stalwart_data_dir, stalwart_log_dir]
-  + ([stalwart_selfsigned_dir] if stalwart_tls_mode == 'selfsigned' else []))
-  | unique | join(' ') }}
+ReadWritePaths={{ [stalwart_install_dir, stalwart_data_dir] | unique | join(' ') }}
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true

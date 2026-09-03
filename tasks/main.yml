@@ -16,11 +16,6 @@
   when: stalwart_cli_install | bool
   tags: [stalwart, stalwart_cli]
 
-- name: Generate self-signed certificate
-  ansible.builtin.import_tasks: tls_selfsigned.yml
-  when: stalwart_tls_mode == 'selfsigned'
-  tags: [stalwart, stalwart_tls]
-
 - name: Configure Stalwart
   ansible.builtin.import_tasks: configure.yml
   tags: [stalwart, stalwart_configure]

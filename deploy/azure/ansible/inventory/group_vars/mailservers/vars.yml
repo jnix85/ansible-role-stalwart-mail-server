@@ -1,0 +1,24 @@
+---
+stalwart_hostname: "{{ inventory_hostname }}"
+stalwart_public_url: "https://{{ inventory_hostname }}"
+stalwart_admin_password: "{{ vault_stalwart_admin_password }}"
+
+stalwart_storage_backend: rocksdb
+
+# All mail lives on the attached Azure managed data disk, not the OS disk.
+# The mailbox playbook formats and mounts the disk at this path before the
+# role runs; the role's systemd unit lists stalwart_data_dir in
+# ReadWritePaths, so pointing it at the mount is supported.
+stalwart_data_mount: /var/lib/stalwart
+stalwart_data_dir: "{{ stalwart_data_mount }}"
+
+# The NSG already restricts inbound; the host firewall stays off to
+# avoid double management. Flip on if you prefer defense in depth.
+stalwart_manage_firewall: false
+
+# TLS certificates, the mail domain, accounts, and the trust settings
+# that let the MX edges relay inbound mail are all configured in the
+# Stalwart web admin after the first deploy. Stalwart 0.16 keeps them in
+# its data store, so there is nothing to template here. The MX edge
+# private IPs to allow-list are in the inventory as
+# hostvars[<mx host>].private_ip for each host in groups['mx_edges'].
