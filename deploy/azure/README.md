@@ -280,9 +280,21 @@ dig +short TXT _dmarc.example.com
 
 ## WARNING: Azure blocks outbound port 25
 
+> **Step-by-step runbook: [PORT25.md](PORT25.md)** — how to tell whether you
+> are actually blocked, whether your subscription can be exempted, and how to
+> relay if it cannot. Read that if you are acting on this; the summary below
+> is context.
+
 **Azure blocks outbound TCP/25 by default on most subscription types** —
-pay-as-you-go, MSDN/Visual Studio, free trial, and others. Nothing in this
-deployment can work around that.
+pay-as-you-go, CSP, MSDN/Visual Studio, free trial, and others, where it is
+permanent and cannot be lifted. Only Enterprise Agreement and Enterprise
+Dev/Test subscriptions can be exempted. Nothing in this deployment can work
+around that.
+
+Note that this block is invisible in the portal: it is enforced in Azure's
+network fabric, not by an NSG rule, so an NSG showing port 25 "open" (which
+ours does, for *inbound* mail to the MX nodes) says nothing about whether the
+server can send.
 
 - **Inbound mail is unaffected.** Internet → `mx1`/`mx2` on port 25, and the
   MX → mailbox hop inside the VNet, both work normally.
