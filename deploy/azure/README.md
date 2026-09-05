@@ -14,6 +14,10 @@ turnkey production mail system — read [Known manual steps and
 limitations](#known-manual-steps-and-limitations) and the [outbound port 25
 warning](#warning-azure-blocks-outbound-port-25) before you rely on it.
 
+> **Working through a deployment?** [RUNBOOK.md](RUNBOOK.md) is the
+> ordered checklist of everything left to do, from `terraform apply` to
+> DNS, testing and backups.
+
 ## Traffic flow
 
 ```text
@@ -280,7 +284,7 @@ dig +short TXT _dmarc.example.com
 
 ## WARNING: Azure blocks outbound port 25
 
-> **Step-by-step runbook: [PORT25.md](PORT25.md)** — how to tell whether you
+> **Step-by-step: [PORT25.md](PORT25.md)** — how to tell whether you
 > are actually blocked, whether your subscription can be exempted, and how to
 > relay if it cannot. Read that if you are acting on this; the summary below
 > is context.
