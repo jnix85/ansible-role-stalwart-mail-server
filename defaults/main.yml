@@ -77,9 +77,14 @@ stalwart_public_url: "https://{{ stalwart_hostname }}"
 # Administrator bootstrap (REQUIRED)
 # ------------------------------------------------------------------
 
+# Login name for the administrator account.
+stalwart_admin_user: admin
+
 # REQUIRED: supply via Ansible Vault. The role fails fast when unset.
-# Passed to the service as STALWART_RECOVERY_ADMIN, which Stalwart uses
-# to create a temporary "recovery-admin" account for first login.
+# Combined with stalwart_admin_user and passed to the service as
+# STALWART_RECOVERY_ADMIN="<user>:<password>", which is the format the
+# server documents in its own bootstrap banner. It is re-read on every
+# start, so changing it and restarting rotates the credential.
 stalwart_admin_password: ""
 
 # ------------------------------------------------------------------
