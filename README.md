@@ -86,10 +86,17 @@ in the web admin: add your domain, create accounts, and enable TLS
 certificates. Stalwart also generates the exact SPF, DKIM and DMARC records to
 publish from there.
 
-First login uses the temporary `recovery-admin` account that
-`STALWART_RECOVERY_ADMIN` provisions from `stalwart_admin_password`. If that
-account is not accepted, follow Stalwart's documented recovery procedure —
-this role sets the variable but cannot verify the login flow for you.
+Log in as `stalwart_admin_user` (default `admin`) with
+`stalwart_admin_password`. The role pins that credential through
+`STALWART_RECOVERY_ADMIN="<user>:<password>"`, the form the server documents
+itself; a bare password is silently ignored. The value is re-read on every
+start, so changing it in the vault and re-running the play rotates the
+password without touching the mail store.
+
+A server started with a config file never enters Stalwart's bootstrap mode, so
+it never prints generated credentials — this pinned credential is the only way
+in. Verified against 0.16.9: IMAP `LOGIN` succeeds with the pinned password
+and fails with any other.
 
 ## Role variables
 
@@ -123,7 +130,8 @@ install rather than deploying something broken.
 | --- | --- | --- |
 | `stalwart_hostname` | `ansible_fqdn` | FQDN the server identifies as. Set this explicitly in production. |
 | `stalwart_public_url` | `https://{{ stalwart_hostname }}` | Base URL the web admin and generated links use. |
-| `stalwart_admin_password` | — | **Required**, min 12 chars. Supply via Ansible Vault. Passed to the service as `STALWART_RECOVERY_ADMIN`. |
+| `stalwart_admin_user` | `admin` | Administrator login name. |
+| `stalwart_admin_password` | — | **Required**, min 12 chars. Supply via Ansible Vault. Passed to the service as `STALWART_RECOVERY_ADMIN="<user>:<password>"`. |
 | `stalwart_env_file` | `<install_dir>/etc/stalwart.env` | Bootstrap environment file. Holds the admin password, so it is written `0640` root-owned. |
 
 Note that this credential is written to the host in plain text, because the
